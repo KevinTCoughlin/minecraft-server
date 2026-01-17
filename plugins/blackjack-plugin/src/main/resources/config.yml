@@ -3,7 +3,66 @@
 # Message prefix displayed before plugin messages
 message-prefix: "&6[Blackjack]&r"
 
-# Colors for card display
+# ===================
+# Gameplay Settings
+# ===================
+gameplay:
+  # Number of decks to use (1-8)
+  decks: 1
+  # Dealer stands on soft 17 (true) or hits on soft 17 (false)
+  dealer-stands-on-soft-17: true
+  # Allow insurance bet when dealer shows Ace (future feature)
+  allow-insurance: false
+  # Blackjack payout multiplier (1.5 = 3:2, 1.2 = 6:5)
+  blackjack-payout: 1.5
+
+# ===================
+# Server Announcements
+# ===================
+announcements:
+  # Announce to entire server when enabled, otherwise only to player
+  broadcast-enabled: true
+
+  # Announce when a player gets blackjack (21 on initial deal)
+  blackjack:
+    enabled: true
+    message: "&6%player% &ejust got a &6BLACKJACK&e! &7(21 on the deal)"
+
+  # Announce when a player wins
+  win:
+    enabled: false
+    message: "&a%player% &2won at blackjack!"
+
+  # Announce when a player gets a winning streak
+  win-streak:
+    enabled: true
+    threshold: 3
+    message: "&6%player% &eis on a &6%streak%-win streak &eat blackjack!"
+
+  # Announce when dealer busts
+  dealer-bust:
+    enabled: false
+    message: "&a%player%'s &2dealer busted!"
+
+# ===================
+# Join Message
+# ===================
+join-message:
+  # Show message to players when they join the server
+  enabled: true
+  # Delay in ticks before showing message (20 ticks = 1 second)
+  delay: 40
+  # Messages to display (supports multiple lines)
+  messages:
+    - "&6&l=== BLACKJACK ==="
+    - "&ePlay blackjack right in chat!"
+    - "&7Use &f/bj &7to start a game"
+    - "&7Commands: &f/bj hit&7, &f/bj stand&7, &f/bj stats"
+    - "&6&l=================="
+
+# ===================
+# Card Display Colors
+# ===================
 colors:
   hearts: "&c"      # Red
   diamonds: "&c"    # Red

@@ -1,0 +1,43 @@
+{
+  "name": "Minecraft Plugin Dev",
+  "image": "mcr.microsoft.com/devcontainers/java:21",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installGradle": "true",
+      "gradleVersion": "8.5"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "fwcd.kotlin",
+        "vscjava.vscode-gradle",
+        "streetsidesoftware.code-spell-checker",
+        "github.copilot"
+      ],
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.compile.nullAnalysis.mode": "automatic",
+        "kotlin.languageServer.enabled": true,
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "postCreateCommand": "./gradlew build --no-daemon",
+  "remoteUser": "vscode",
+  "forwardPorts": [25565, 25575],
+  "portsAttributes": {
+    "25565": {
+      "label": "Minecraft Server",
+      "onAutoForward": "notify"
+    },
+    "25575": {
+      "label": "RCON",
+      "onAutoForward": "silent"
+    }
+  }
+}

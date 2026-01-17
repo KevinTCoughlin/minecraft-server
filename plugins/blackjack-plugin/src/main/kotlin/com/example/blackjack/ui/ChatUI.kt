@@ -135,6 +135,12 @@ object ChatUI {
     }
 
     fun renderStats(stats: PlayerStats): Component {
+        val winRate = if (stats.gamesPlayed > 0) {
+            "%.1f%%".format((stats.wins.toDouble() / stats.gamesPlayed) * 100)
+        } else {
+            "N/A"
+        }
+
         return Component.empty()
             .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
             .append(Component.newline())
@@ -147,6 +153,7 @@ object ChatUI {
             .append(Component.newline())
             .append(Component.text("  Wins: ", NamedTextColor.WHITE))
             .append(Component.text("${stats.wins}", NamedTextColor.GREEN))
+            .append(Component.text(" ($winRate)", NamedTextColor.GRAY))
             .append(Component.newline())
             .append(Component.text("  Losses: ", NamedTextColor.WHITE))
             .append(Component.text("${stats.losses}", NamedTextColor.RED))
@@ -156,6 +163,12 @@ object ChatUI {
             .append(Component.newline())
             .append(Component.text("  Blackjacks: ", NamedTextColor.WHITE))
             .append(Component.text("${stats.blackjacks}", NamedTextColor.GOLD))
+            .append(Component.newline())
+            .append(Component.text("  Current Streak: ", NamedTextColor.WHITE))
+            .append(Component.text("${stats.currentWinStreak}", NamedTextColor.LIGHT_PURPLE))
+            .append(Component.newline())
+            .append(Component.text("  Best Streak: ", NamedTextColor.WHITE))
+            .append(Component.text("${stats.bestWinStreak}", NamedTextColor.LIGHT_PURPLE))
             .append(Component.newline())
             .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
     }

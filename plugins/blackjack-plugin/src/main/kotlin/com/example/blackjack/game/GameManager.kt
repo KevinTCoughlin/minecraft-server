@@ -7,21 +7,34 @@ data class PlayerStats(
     var wins: Int = 0,
     var losses: Int = 0,
     var pushes: Int = 0,
-    var blackjacks: Int = 0
+    var blackjacks: Int = 0,
+    var currentWinStreak: Int = 0,
+    var bestWinStreak: Int = 0
 ) {
     val gamesPlayed: Int
         get() = wins + losses + pushes
 
-    fun recordResult(result: GameResult) {
+    fun recordResult(result: GameResult): Int {
         when (result) {
-            GameResult.PLAYER_WIN, GameResult.DEALER_BUST -> wins++
+            GameResult.PLAYER_WIN, GameResult.DEALER_BUST -> {
+                wins++
+                currentWinStreak++
+            }
             GameResult.PLAYER_BLACKJACK -> {
                 wins++
                 blackjacks++
+                currentWinStreak++
             }
-            GameResult.DEALER_WIN, GameResult.PLAYER_BUST -> losses++
+            GameResult.DEALER_WIN, GameResult.PLAYER_BUST -> {
+                losses++
+                currentWinStreak = 0
+            }
             GameResult.PUSH -> pushes++
         }
+        if (currentWinStreak > bestWinStreak) {
+            bestWinStreak = currentWinStreak
+        }
+        return currentWinStreak
     }
 }
 
@@ -39,11 +52,16 @@ class GameManager {
 
     fun hasActiveGame(playerId: UUID): Boolean = activeSessions.containsKey(playerId)
 
-    fun endGame(playerId: UUID) {
-        val session = activeSessions.remove(playerId)
-        session?.result?.let { result ->
-            getOrCreateStats(playerId).recordResult(result)
-        }
+    data class GameEndResult(
+        val result: GameResult,
+        val winStreak: Int
+    )
+
+    fun endGame(playerId: UUID): GameEndResult? {
+        val session = activeSessions.remove(playerId) ?: return null
+        val result = session.result ?: return null
+        val winStreak = getOrCreateStats(playerId).recordResult(result)
+        return GameEndResult(result, winStreak)
     }
 
     fun getStats(playerId: UUID): PlayerStats = getOrCreateStats(playerId)
