@@ -1,0 +1,33 @@
+name: ExamplePlugin
+version: ${version}
+main: com.example.plugin.ExamplePlugin
+api-version: "${apiVersion}"
+description: An example Kotlin plugin for PaperMC
+author: YourName
+website: https://github.com/yourusername/minecraft-server
+
+commands:
+  hello:
+    description: Say hello to someone
+    usage: /hello [name]
+    permission: example.hello
+    permission-message: You don't have permission to use this command!
+  ping:
+    description: Check your ping to the server
+    usage: /ping
+    permission: example.ping
+    permission-message: You don't have permission to use this command!
+
+permissions:
+  example.hello:
+    description: Allows the use of the /hello command
+    default: true
+  example.ping:
+    description: Allows the use of the /ping command
+    default: true
+  example.*:
+    description: Access to all example plugin features
+    default: op
+    children:
+      example.hello: true
+      example.ping: true

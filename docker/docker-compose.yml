@@ -1,0 +1,114 @@
+version: "3.9"
+
+services:
+  minecraft:
+    image: itzg/minecraft-server:java21
+    container_name: minecraft-server
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+    ports:
+      - "25565:25565"     # Minecraft
+      - "25575:25575"     # RCON
+
+    environment:
+      # Server type
+      TYPE: "PAPER"
+      VERSION: "1.21.4"
+      EULA: "TRUE"
+
+      # Memory settings
+      MEMORY: "4G"
+      JVM_OPTS: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200"
+
+      # Server settings
+      SERVER_NAME: "My PaperMC Server"
+      MOTD: "A PaperMC Server - Powered by Docker"
+      DIFFICULTY: "normal"
+      MODE: "survival"
+      MAX_PLAYERS: 20
+      ONLINE_MODE: "true"
+      VIEW_DISTANCE: 10
+      SIMULATION_DISTANCE: 10
+      SPAWN_PROTECTION: 16
+
+      # RCON
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "changeme"
+      RCON_PORT: 25575
+
+      # Misc
+      ENABLE_COMMAND_BLOCK: "false"
+      ALLOW_FLIGHT: "false"
+      PVP: "true"
+
+      # Timezone
+      TZ: "UTC"
+
+      # Auto-pause (optional - saves resources when no players)
+      # ENABLE_AUTOPAUSE: "true"
+      # AUTOPAUSE_TIMEOUT_EST: 600
+
+    volumes:
+      # Persist world data
+      - minecraft-data:/data
+
+      # Mount configuration files (optional - for customization)
+      - ../server/server.properties:/data/server.properties:ro
+      - ../server/paper-global.yml:/data/config/paper-global.yml:ro
+      - ../server/paper-world-defaults.yml:/data/config/paper-world-defaults.yml:ro
+      - ../server/bukkit.yml:/data/bukkit.yml:ro
+      - ../server/spigot.yml:/data/spigot.yml:ro
+
+      # Mount plugins
+      - ../server/plugins:/data/plugins
+
+    healthcheck:
+      test: mc-health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 2G
+
+volumes:
+  minecraft-data:
+    name: minecraft-server-data
+
+# Additional services for production deployments
+# Uncomment as needed
+
+# networks:
+#   default:
+#     name: minecraft-network
+
+# services:
+#   # Velocity proxy for multiple servers
+#   velocity:
+#     image: itzg/mc-proxy
+#     ports:
+#       - "25577:25577"
+#     environment:
+#       TYPE: VELOCITY
+#     volumes:
+#       - velocity-data:/server
+#
+#   # Backup service
+#   backup:
+#     image: itzg/mc-backup
+#     environment:
+#       BACKUP_INTERVAL: "24h"
+#       RCON_HOST: minecraft
+#       RCON_PORT: 25575
+#       RCON_PASSWORD: changeme
+#     volumes:
+#       - minecraft-data:/data:ro
+#       - ./backups:/backups

@@ -1,0 +1,57 @@
+# Server runtime files
+server/*.jar
+server/eula.txt
+server/logs/
+server/cache/
+server/versions/
+server/libraries/
+
+# World data
+server/world/
+server/world_nether/
+server/world_the_end/
+
+# Player data
+server/banned-ips.json
+server/banned-players.json
+server/usercache.json
+server/ops.json
+server/whitelist.json
+
+# Session and crash data
+server/session.lock
+server/crash-reports/
+
+# Plugin data (except source)
+server/plugins/*/
+server/plugins/*.jar
+!server/plugins/.gitkeep
+
+# Gradle
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+*.local
+
+# Backups
+backups/
+*.tar.gz
+
+# Misc
+*.log
+*.tmp

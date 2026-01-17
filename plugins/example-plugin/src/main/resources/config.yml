@@ -1,0 +1,15 @@
+# Example Plugin Configuration
+# This file is automatically created when the plugin first loads.
+
+# Prefix for messages sent by this plugin
+message-prefix: "&6[Example]&r"
+
+# Welcome message shown to players when they join
+# Use {player} to insert the player's name
+welcome-message: "Welcome to the server, {player}!"
+
+# Play a level-up sound when players join
+play-join-sound: true
+
+# Announce when players find diamond ore
+announce-diamond-mining: true
