@@ -1,0 +1,24 @@
+name: BlackjackPlugin
+version: ${version}
+main: com.example.blackjack.BlackjackPlugin
+api-version: "${apiVersion}"
+description: Play blackjack against a dealer in Minecraft chat
+author: YourName
+website: https://github.com/yourusername/minecraft-server
+
+commands:
+  bj:
+    description: Play blackjack
+    usage: /bj [start|hit|stand|stats]
+    permission: blackjack.play
+    permission-message: You don't have permission to play blackjack!
+
+permissions:
+  blackjack.play:
+    description: Allows playing blackjack
+    default: true
+  blackjack.*:
+    description: Access to all blackjack features
+    default: op
+    children:
+      blackjack.play: true

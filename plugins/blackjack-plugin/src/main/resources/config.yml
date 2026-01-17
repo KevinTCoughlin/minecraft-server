@@ -1,0 +1,12 @@
+# Blackjack Plugin Configuration
+
+# Message prefix displayed before plugin messages
+message-prefix: "&6[Blackjack]&r"
+
+# Colors for card display
+colors:
+  hearts: "&c"      # Red
+  diamonds: "&c"    # Red
+  spades: "&f"      # White
+  clubs: "&f"       # White
+  hidden: "&8"      # Dark gray

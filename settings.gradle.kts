@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 
 include("plugins:example-plugin")
+include("plugins:blackjack-plugin")
