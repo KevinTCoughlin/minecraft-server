@@ -2,185 +2,154 @@ package com.example.blackjack.ui
 
 import com.example.blackjack.game.*
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.Component.newline
+import net.kyori.adventure.text.Component.text
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.NamedTextColor.*
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
+/**
+ * Renders Blackjack game UI components for chat display.
+ */
 object ChatUI {
 
+    private val DIVIDER = text("═══════════════════════════════", GOLD)
+
+    /** Renders a single card with suit-appropriate coloring. */
     fun renderCard(card: Card): Component {
-        val color = if (card.suit.isRed) NamedTextColor.RED else NamedTextColor.WHITE
-        return Component.text("[${card.display}]", color)
+        val color = if (card.suit.isRed) RED else WHITE
+        return text("[${card.display}]", color)
     }
 
-    fun renderHiddenCard(): Component {
-        return Component.text("[??]", NamedTextColor.DARK_GRAY)
-    }
+    /** Renders a face-down card. */
+    fun renderHiddenCard(): Component = text("[??]", DARK_GRAY)
 
+    /** Renders a hand of cards, optionally hiding the first card. */
     fun renderHand(hand: Hand, hideFirst: Boolean = false): Component {
-        val cards = hand.getCards()
-        if (cards.isEmpty()) {
-            return Component.text("(empty)", NamedTextColor.GRAY)
-        }
+        if (hand.cards.isEmpty()) return text("(empty)", GRAY)
 
-        var result = Component.empty()
-        cards.forEachIndexed { index, card ->
-            if (index > 0) {
-                result = result.append(Component.text(" "))
+        return hand.cards
+            .mapIndexed { index, card ->
+                if (hideFirst && index == 0) renderHiddenCard() else renderCard(card)
             }
-            result = if (hideFirst && index == 0) {
-                result.append(renderHiddenCard())
-            } else {
-                result.append(renderCard(card))
-            }
-        }
-        return result
+            .reduce { acc, component -> acc.append(text(" ")).append(component) }
     }
 
+    /** Renders the current game state showing both hands. */
     fun renderGameState(session: GameSession, showDealerHand: Boolean = false): Component {
-        val playerValue = session.playerHand.getValue()
-        val showDealer = showDealerHand || session.isFinished()
-
-        var message = Component.empty()
-
-        // Header
-        message = message.append(
-            Component.text("═══════════════════════════════", NamedTextColor.GOLD)
-        ).append(Component.newline())
-
-        // Player's hand
-        message = message.append(
-            Component.text("Your Hand ", NamedTextColor.YELLOW)
-        ).append(
-            Component.text("($playerValue)", NamedTextColor.WHITE)
-        ).append(
-            Component.text(":", NamedTextColor.YELLOW)
-        ).append(Component.newline())
-
-        message = message.append(Component.text("  "))
-            .append(renderHand(session.playerHand))
-            .append(Component.newline())
-
-        // Dealer's hand
-        message = message.append(Component.newline())
-        if (showDealer) {
-            val dealerValue = session.dealerHand.getValue()
-            message = message.append(
-                Component.text("Dealer's Hand ", NamedTextColor.YELLOW)
-            ).append(
-                Component.text("($dealerValue)", NamedTextColor.WHITE)
-            ).append(
-                Component.text(":", NamedTextColor.YELLOW)
-            ).append(Component.newline())
-            message = message.append(Component.text("  "))
-                .append(renderHand(session.dealerHand))
-                .append(Component.newline())
-        } else {
-            message = message.append(
-                Component.text("Dealer shows:", NamedTextColor.YELLOW)
-            ).append(Component.newline())
-            message = message.append(Component.text("  "))
-                .append(renderHand(session.dealerHand, hideFirst = true))
-                .append(Component.newline())
-        }
-
-        return message
-    }
-
-    fun renderActionButtons(): Component {
-        val hitButton = Component.text("[HIT]", NamedTextColor.GREEN)
-            .decorate(TextDecoration.BOLD)
-            .clickEvent(ClickEvent.runCommand("/bj hit"))
-            .hoverEvent(HoverEvent.showText(Component.text("Draw another card", NamedTextColor.GRAY)))
-
-        val standButton = Component.text("[STAND]", NamedTextColor.RED)
-            .decorate(TextDecoration.BOLD)
-            .clickEvent(ClickEvent.runCommand("/bj stand"))
-            .hoverEvent(HoverEvent.showText(Component.text("End your turn", NamedTextColor.GRAY)))
+        val showDealer = showDealerHand || session.isFinished
 
         return Component.empty()
-            .append(Component.newline())
-            .append(Component.text("      "))
-            .append(hitButton)
-            .append(Component.text("  "))
-            .append(standButton)
-            .append(Component.newline())
-            .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
-    }
-
-    fun renderResult(result: GameResult): Component {
-        val (message, color) = when (result) {
-            GameResult.PLAYER_BLACKJACK -> "BLACKJACK! You win!" to NamedTextColor.GOLD
-            GameResult.PLAYER_WIN -> "You win!" to NamedTextColor.GREEN
-            GameResult.DEALER_BUST -> "Dealer busts! You win!" to NamedTextColor.GREEN
-            GameResult.DEALER_WIN -> "Dealer wins!" to NamedTextColor.RED
-            GameResult.PLAYER_BUST -> "Bust! You lose!" to NamedTextColor.RED
-            GameResult.PUSH -> "Push! It's a tie!" to NamedTextColor.YELLOW
-        }
-
-        return Component.empty()
-            .append(Component.newline())
-            .append(Component.text(">>> $message <<<", color).decorate(TextDecoration.BOLD))
-            .append(Component.newline())
-            .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
-            .append(Component.newline())
+            .append(DIVIDER).append(newline())
+            .append(renderHandSection("Your Hand", session.playerHand.value, session.playerHand))
+            .append(newline())
             .append(
-                Component.text("[Play Again]", NamedTextColor.AQUA)
-                    .decorate(TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand("/bj start"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Start a new game", NamedTextColor.GRAY)))
+                if (showDealer) {
+                    renderHandSection("Dealer's Hand", session.dealerHand.value, session.dealerHand)
+                } else {
+                    text("Dealer shows:", YELLOW).append(newline())
+                        .append(text("  ")).append(renderHand(session.dealerHand, hideFirst = true)).append(newline())
+                }
             )
     }
 
-    fun renderStats(stats: PlayerStats): Component {
-        val winRate = if (stats.gamesPlayed > 0) {
-            "%.1f%%".format((stats.wins.toDouble() / stats.gamesPlayed) * 100)
-        } else {
-            "N/A"
-        }
+    private fun renderHandSection(label: String, value: Int, hand: Hand): Component =
+        text("$label ", YELLOW)
+            .append(text("($value)", WHITE))
+            .append(text(":", YELLOW))
+            .append(newline())
+            .append(text("  "))
+            .append(renderHand(hand))
+            .append(newline())
+
+    /** Renders clickable HIT and STAND buttons. */
+    fun renderActionButtons(): Component {
+        val hitButton = createButton("[HIT]", GREEN, "/bj hit", "Draw another card")
+        val standButton = createButton("[STAND]", RED, "/bj stand", "End your turn")
 
         return Component.empty()
-            .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
-            .append(Component.newline())
-            .append(Component.text("       Blackjack Stats", NamedTextColor.YELLOW).decorate(TextDecoration.BOLD))
-            .append(Component.newline())
-            .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
-            .append(Component.newline())
-            .append(Component.text("  Games Played: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.gamesPlayed}", NamedTextColor.AQUA))
-            .append(Component.newline())
-            .append(Component.text("  Wins: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.wins}", NamedTextColor.GREEN))
-            .append(Component.text(" ($winRate)", NamedTextColor.GRAY))
-            .append(Component.newline())
-            .append(Component.text("  Losses: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.losses}", NamedTextColor.RED))
-            .append(Component.newline())
-            .append(Component.text("  Pushes: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.pushes}", NamedTextColor.YELLOW))
-            .append(Component.newline())
-            .append(Component.text("  Blackjacks: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.blackjacks}", NamedTextColor.GOLD))
-            .append(Component.newline())
-            .append(Component.text("  Current Streak: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.currentWinStreak}", NamedTextColor.LIGHT_PURPLE))
-            .append(Component.newline())
-            .append(Component.text("  Best Streak: ", NamedTextColor.WHITE))
-            .append(Component.text("${stats.bestWinStreak}", NamedTextColor.LIGHT_PURPLE))
-            .append(Component.newline())
-            .append(Component.text("═══════════════════════════════", NamedTextColor.GOLD))
+            .append(newline())
+            .append(text("      "))
+            .append(hitButton)
+            .append(text("  "))
+            .append(standButton)
+            .append(newline())
+            .append(DIVIDER)
     }
 
+    /** Renders the game result with a Play Again button. */
+    fun renderResult(result: GameResult): Component {
+        val (message, color) = result.toDisplayInfo()
+
+        return Component.empty()
+            .append(newline())
+            .append(text(">>> $message <<<", color).decorate(TextDecoration.BOLD))
+            .append(newline())
+            .append(DIVIDER)
+            .append(newline())
+            .append(createButton("[Play Again]", AQUA, "/bj start", "Start a new game"))
+    }
+
+    private fun GameResult.toDisplayInfo(): Pair<String, NamedTextColor> = when (this) {
+        GameResult.PLAYER_BLACKJACK -> "BLACKJACK! You win!" to GOLD
+        GameResult.PLAYER_WIN -> "You win!" to GREEN
+        GameResult.DEALER_BUST -> "Dealer busts! You win!" to GREEN
+        GameResult.DEALER_WIN -> "Dealer wins!" to RED
+        GameResult.PLAYER_BUST -> "Bust! You lose!" to RED
+        GameResult.PUSH -> "Push! It's a tie!" to YELLOW
+    }
+
+    /** Renders player statistics. */
+    fun renderStats(stats: PlayerStats): Component {
+        val winRate = stats.winRateFormatted
+
+        return Component.empty()
+            .append(DIVIDER).append(newline())
+            .append(text("       Blackjack Stats", YELLOW).decorate(TextDecoration.BOLD)).append(newline())
+            .append(DIVIDER).append(newline())
+            .appendStat("Games Played", stats.gamesPlayed, AQUA)
+            .appendStat("Wins", stats.wins, GREEN, " ($winRate)")
+            .appendStat("Losses", stats.losses, RED)
+            .appendStat("Pushes", stats.pushes, YELLOW)
+            .appendStat("Blackjacks", stats.blackjacks, GOLD)
+            .appendStat("Current Streak", stats.currentWinStreak, LIGHT_PURPLE)
+            .appendStat("Best Streak", stats.bestWinStreak, LIGHT_PURPLE)
+            .append(DIVIDER)
+    }
+
+    private val PlayerStats.winRateFormatted: String
+        get() = if (gamesPlayed > 0) "%.1f%%".format(wins.toDouble() / gamesPlayed * 100) else "N/A"
+
+    private fun Component.appendStat(
+        label: String,
+        value: Int,
+        valueColor: NamedTextColor,
+        suffix: String = ""
+    ): Component = this
+        .append(text("  $label: ", WHITE))
+        .append(text("$value", valueColor))
+        .apply { if (suffix.isNotEmpty()) append(text(suffix, GRAY)) }
+        .append(newline())
+
+    private fun createButton(
+        label: String,
+        color: NamedTextColor,
+        command: String,
+        hoverText: String
+    ): Component = text(label, color)
+        .decorate(TextDecoration.BOLD)
+        .clickEvent(ClickEvent.runCommand(command))
+        .hoverEvent(HoverEvent.showText(text(hoverText, GRAY)))
+
+    /** Sends the complete game display to a player. */
     fun sendGameDisplay(player: Player, session: GameSession) {
         player.sendMessage(renderGameState(session))
-        if (session.isPlayerTurn()) {
-            player.sendMessage(renderActionButtons())
-        } else if (session.isFinished()) {
-            session.result?.let { result ->
-                player.sendMessage(renderResult(result))
-            }
+        when {
+            session.isPlayerTurn -> player.sendMessage(renderActionButtons())
+            session.isFinished -> session.result?.let { player.sendMessage(renderResult(it)) }
         }
     }
 }

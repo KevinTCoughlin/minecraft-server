@@ -1,6 +1,7 @@
 package com.example.blackjack.commands
 
 import com.example.blackjack.BlackjackPlugin
+import com.example.blackjack.game.GameManager
 import com.example.blackjack.game.GameResult
 import com.example.blackjack.ui.ChatUI
 import net.kyori.adventure.text.Component
@@ -11,10 +12,17 @@ import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 
+/**
+ * Handles the `/bj` command and its subcommands.
+ */
 class BlackjackCommand(private val plugin: BlackjackPlugin) : CommandExecutor, TabCompleter {
 
     private val gameManager get() = plugin.gameManager
     private val announcements get() = plugin.announcementManager
+
+    companion object {
+        private val SUBCOMMANDS = listOf("start", "hit", "stand", "stats")
+    }
 
     override fun onCommand(
         sender: CommandSender,
@@ -22,21 +30,17 @@ class BlackjackCommand(private val plugin: BlackjackPlugin) : CommandExecutor, T
         label: String,
         args: Array<out String>
     ): Boolean {
-        if (sender !is Player) {
+        val player = sender as? Player ?: run {
             sender.sendMessage(Component.text("This command can only be used by players!", NamedTextColor.RED))
             return true
         }
 
-        val subcommand = args.getOrNull(0)?.lowercase() ?: "start"
-
-        when (subcommand) {
-            "start" -> handleStart(sender)
-            "hit" -> handleHit(sender)
-            "stand" -> handleStand(sender)
-            "stats" -> handleStats(sender)
-            else -> {
-                sender.sendMessage(Component.text("Unknown subcommand. Use: /bj [start|hit|stand|stats]", NamedTextColor.RED))
-            }
+        when (args.getOrNull(0)?.lowercase() ?: "start") {
+            "start" -> handleStart(player)
+            "hit" -> handleHit(player)
+            "stand" -> handleStand(player)
+            "stats" -> handleStats(player)
+            else -> player.sendError("Unknown subcommand. Use: /bj [start|hit|stand|stats]")
         }
 
         return true
@@ -44,101 +48,78 @@ class BlackjackCommand(private val plugin: BlackjackPlugin) : CommandExecutor, T
 
     private fun handleStart(player: Player) {
         // End any existing game first
-        if (gameManager.hasActiveGame(player.uniqueId)) {
+        if (player.uniqueId in gameManager) {
             gameManager.endGame(player.uniqueId)
         }
 
         val session = gameManager.startGame(player.uniqueId)
 
         player.sendMessage(Component.empty())
-        player.sendMessage(
-            Component.text("Starting a new game of Blackjack!", NamedTextColor.GOLD)
-        )
+        player.sendMessage(Component.text("Starting a new game of Blackjack!", NamedTextColor.GOLD))
         player.sendMessage(Component.empty())
 
         ChatUI.sendGameDisplay(player, session)
 
         // Check if game already ended (player blackjack scenario)
-        if (session.isFinished()) {
-            val endResult = gameManager.endGame(player.uniqueId)
-            endResult?.let { handleGameEnd(player, it) }
+        if (session.isFinished) {
+            gameManager.endGame(player.uniqueId)?.let { handleGameEnd(player, it) }
         }
     }
 
     private fun handleHit(player: Player) {
-        val session = gameManager.getSession(player.uniqueId)
-
-        if (session == null) {
-            player.sendMessage(
-                Component.text("You don't have an active game! Use /bj to start one.", NamedTextColor.RED)
-            )
+        val session = gameManager[player.uniqueId] ?: run {
+            player.sendError("You don't have an active game! Use /bj to start one.")
             return
         }
 
-        if (!session.isPlayerTurn()) {
-            player.sendMessage(
-                Component.text("It's not your turn to hit!", NamedTextColor.RED)
-            )
+        if (!session.isPlayerTurn) {
+            player.sendError("It's not your turn to hit!")
             return
         }
 
         session.hit()
         ChatUI.sendGameDisplay(player, session)
 
-        if (session.isFinished()) {
-            val endResult = gameManager.endGame(player.uniqueId)
-            endResult?.let { handleGameEnd(player, it) }
+        if (session.isFinished) {
+            gameManager.endGame(player.uniqueId)?.let { handleGameEnd(player, it) }
         }
     }
 
     private fun handleStand(player: Player) {
-        val session = gameManager.getSession(player.uniqueId)
-
-        if (session == null) {
-            player.sendMessage(
-                Component.text("You don't have an active game! Use /bj to start one.", NamedTextColor.RED)
-            )
+        val session = gameManager[player.uniqueId] ?: run {
+            player.sendError("You don't have an active game! Use /bj to start one.")
             return
         }
 
-        if (!session.isPlayerTurn()) {
-            player.sendMessage(
-                Component.text("It's not your turn!", NamedTextColor.RED)
-            )
+        if (!session.isPlayerTurn) {
+            player.sendError("It's not your turn!")
             return
         }
 
         session.stand()
         ChatUI.sendGameDisplay(player, session)
-        val endResult = gameManager.endGame(player.uniqueId)
-        endResult?.let { handleGameEnd(player, it) }
+        gameManager.endGame(player.uniqueId)?.let { handleGameEnd(player, it) }
     }
 
-    private fun handleGameEnd(player: Player, endResult: com.example.blackjack.game.GameManager.GameEndResult) {
+    private fun handleGameEnd(player: Player, endResult: GameManager.GameEndResult) {
         when (endResult.result) {
-            GameResult.PLAYER_BLACKJACK -> {
-                announcements.announceBlackjack(player)
-            }
+            GameResult.PLAYER_BLACKJACK -> announcements.announceBlackjack(player)
             GameResult.DEALER_BUST -> {
                 announcements.announceDealerBust(player)
                 announcements.announceWin(player, endResult.result)
             }
-            GameResult.PLAYER_WIN -> {
-                announcements.announceWin(player, endResult.result)
-            }
-            else -> { /* No announcement for losses/pushes */ }
+            GameResult.PLAYER_WIN -> announcements.announceWin(player, endResult.result)
+            else -> Unit // No announcement for losses/pushes
         }
 
-        // Check for win streak announcements
         if (endResult.winStreak > 0) {
             announcements.announceWinStreak(player, endResult.winStreak)
         }
     }
 
     private fun handleStats(player: Player) {
-        val stats = gameManager.getStats(player.uniqueId)
         player.sendMessage(Component.empty())
-        player.sendMessage(ChatUI.renderStats(stats))
+        player.sendMessage(ChatUI.renderStats(gameManager.getStats(player.uniqueId)))
     }
 
     override fun onTabComplete(
@@ -146,11 +127,12 @@ class BlackjackCommand(private val plugin: BlackjackPlugin) : CommandExecutor, T
         command: Command,
         alias: String,
         args: Array<out String>
-    ): List<String> {
-        if (args.size == 1) {
-            val subcommands = listOf("start", "hit", "stand", "stats")
-            return subcommands.filter { it.startsWith(args[0].lowercase()) }
-        }
-        return emptyList()
+    ): List<String> = when {
+        args.size == 1 -> SUBCOMMANDS.filter { it.startsWith(args[0], ignoreCase = true) }
+        else -> emptyList()
+    }
+
+    private fun Player.sendError(message: String) {
+        sendMessage(Component.text(message, NamedTextColor.RED))
     }
 }

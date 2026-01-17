@@ -3,6 +3,9 @@ package com.example.blackjack.game
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Tracks a player's Blackjack statistics.
+ */
 data class PlayerStats(
     var wins: Int = 0,
     var losses: Int = 0,
@@ -11,9 +14,15 @@ data class PlayerStats(
     var currentWinStreak: Int = 0,
     var bestWinStreak: Int = 0
 ) {
-    val gamesPlayed: Int
-        get() = wins + losses + pushes
+    /** Total number of games played. */
+    val gamesPlayed: Int get() = wins + losses + pushes
 
+    /**
+     * Records a game result and updates statistics.
+     *
+     * @param result The outcome of the game.
+     * @return The current win streak after recording.
+     */
     fun recordResult(result: GameResult): Int {
         when (result) {
             GameResult.PLAYER_WIN, GameResult.DEALER_BUST -> {
@@ -31,44 +40,72 @@ data class PlayerStats(
             }
             GameResult.PUSH -> pushes++
         }
-        if (currentWinStreak > bestWinStreak) {
-            bestWinStreak = currentWinStreak
-        }
+        bestWinStreak = maxOf(bestWinStreak, currentWinStreak)
         return currentWinStreak
     }
 }
 
+/**
+ * Manages active Blackjack game sessions and player statistics.
+ *
+ * Thread-safe for concurrent access.
+ */
 class GameManager {
-    private val activeSessions: ConcurrentHashMap<UUID, GameSession> = ConcurrentHashMap()
-    private val playerStats: ConcurrentHashMap<UUID, PlayerStats> = ConcurrentHashMap()
 
-    fun startGame(playerId: UUID): GameSession {
-        val session = GameSession(playerId)
-        activeSessions[playerId] = session
-        return session
-    }
+    private val activeSessions = ConcurrentHashMap<UUID, GameSession>()
+    private val playerStats = ConcurrentHashMap<UUID, PlayerStats>()
 
-    fun getSession(playerId: UUID): GameSession? = activeSessions[playerId]
+    /** The number of currently active games. */
+    val activeGameCount: Int get() = activeSessions.size
 
-    fun hasActiveGame(playerId: UUID): Boolean = activeSessions.containsKey(playerId)
+    /**
+     * Starts a new game for the specified player.
+     *
+     * @param playerId The player's unique ID.
+     * @return The newly created game session.
+     */
+    fun startGame(playerId: UUID): GameSession =
+        GameSession(playerId).also { activeSessions[playerId] = it }
 
+    /**
+     * Gets the active session for a player, if one exists.
+     *
+     * @param playerId The player's unique ID.
+     * @return The active session, or `null` if none exists.
+     */
+    operator fun get(playerId: UUID): GameSession? = activeSessions[playerId]
+
+    /**
+     * Checks if a player has an active game.
+     *
+     * @param playerId The player's unique ID.
+     */
+    operator fun contains(playerId: UUID): Boolean = playerId in activeSessions
+
+    /** Result of ending a game, containing the outcome and current win streak. */
     data class GameEndResult(
         val result: GameResult,
         val winStreak: Int
     )
 
+    /**
+     * Ends a player's active game and records the result.
+     *
+     * @param playerId The player's unique ID.
+     * @return The game result and win streak, or `null` if no active game.
+     */
     fun endGame(playerId: UUID): GameEndResult? {
         val session = activeSessions.remove(playerId) ?: return null
         val result = session.result ?: return null
-        val winStreak = getOrCreateStats(playerId).recordResult(result)
+        val winStreak = getStats(playerId).recordResult(result)
         return GameEndResult(result, winStreak)
     }
 
-    fun getStats(playerId: UUID): PlayerStats = getOrCreateStats(playerId)
-
-    private fun getOrCreateStats(playerId: UUID): PlayerStats {
-        return playerStats.getOrPut(playerId) { PlayerStats() }
-    }
-
-    fun getActiveGameCount(): Int = activeSessions.size
+    /**
+     * Gets the statistics for a player, creating them if necessary.
+     *
+     * @param playerId The player's unique ID.
+     */
+    fun getStats(playerId: UUID): PlayerStats =
+        playerStats.getOrPut(playerId) { PlayerStats() }
 }

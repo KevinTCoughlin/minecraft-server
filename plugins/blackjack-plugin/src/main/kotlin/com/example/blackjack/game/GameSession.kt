@@ -2,29 +2,46 @@ package com.example.blackjack.game
 
 import java.util.UUID
 
+/** The current state of a Blackjack game. */
 enum class GameState {
     PLAYER_TURN,
     DEALER_TURN,
     FINISHED
 }
 
+/** Possible outcomes of a Blackjack game. */
 enum class GameResult {
     PLAYER_WIN,
     DEALER_WIN,
-    PUSH,  // Tie
+    /** A tie (push). */
+    PUSH,
     PLAYER_BLACKJACK,
     PLAYER_BUST,
     DEALER_BUST
 }
 
+/**
+ * Represents an active Blackjack game session for a player.
+ *
+ * @property playerId The unique ID of the player.
+ */
 class GameSession(val playerId: UUID) {
+
     val deck = Deck()
     val playerHand = Hand()
     val dealerHand = Hand()
+
     var state: GameState = GameState.PLAYER_TURN
         private set
+
     var result: GameResult? = null
         private set
+
+    /** Returns `true` if the game has finished. */
+    val isFinished: Boolean get() = state == GameState.FINISHED
+
+    /** Returns `true` if it's currently the player's turn. */
+    val isPlayerTurn: Boolean get() = state == GameState.PLAYER_TURN
 
     init {
         startNewGame()
@@ -38,34 +55,42 @@ class GameSession(val playerId: UUID) {
         result = null
 
         // Deal initial cards: player, dealer, player, dealer
-        playerHand.addCard(deck.draw())
-        dealerHand.addCard(deck.draw())
-        playerHand.addCard(deck.draw())
-        dealerHand.addCard(deck.draw())
+        repeat(2) {
+            playerHand += deck.draw()
+            dealerHand += deck.draw()
+        }
 
         // Check for player blackjack
-        if (playerHand.isBlackjack()) {
+        if (playerHand.isBlackjack) {
             playDealerTurn()
         }
     }
 
+    /**
+     * Player takes a hit (draws another card).
+     *
+     * @return `true` if the action was valid, `false` if not player's turn.
+     */
     fun hit(): Boolean {
-        if (state != GameState.PLAYER_TURN) return false
+        if (!isPlayerTurn) return false
 
-        playerHand.addCard(deck.draw())
+        playerHand += deck.draw()
 
-        if (playerHand.isBust()) {
+        if (playerHand.isBust) {
             state = GameState.FINISHED
             result = GameResult.PLAYER_BUST
-            return true
         }
 
         return true
     }
 
+    /**
+     * Player stands (ends their turn).
+     *
+     * @return `true` if the action was valid, `false` if not player's turn.
+     */
     fun stand(): Boolean {
-        if (state != GameState.PLAYER_TURN) return false
-
+        if (!isPlayerTurn) return false
         playDealerTurn()
         return true
     }
@@ -74,8 +99,8 @@ class GameSession(val playerId: UUID) {
         state = GameState.DEALER_TURN
 
         // Dealer draws until 17 or higher
-        while (dealerHand.getValue() < 17) {
-            dealerHand.addCard(deck.draw())
+        while (dealerHand.value < 17) {
+            dealerHand += deck.draw()
         }
 
         state = GameState.FINISHED
@@ -83,22 +108,15 @@ class GameSession(val playerId: UUID) {
     }
 
     private fun determineWinner() {
-        val playerValue = playerHand.getValue()
-        val dealerValue = dealerHand.getValue()
-
         result = when {
-            playerHand.isBlackjack() && dealerHand.isBlackjack() -> GameResult.PUSH
-            playerHand.isBlackjack() -> GameResult.PLAYER_BLACKJACK
-            dealerHand.isBlackjack() -> GameResult.DEALER_WIN
-            playerHand.isBust() -> GameResult.PLAYER_BUST
-            dealerHand.isBust() -> GameResult.DEALER_BUST
-            playerValue > dealerValue -> GameResult.PLAYER_WIN
-            dealerValue > playerValue -> GameResult.DEALER_WIN
+            playerHand.isBlackjack && dealerHand.isBlackjack -> GameResult.PUSH
+            playerHand.isBlackjack -> GameResult.PLAYER_BLACKJACK
+            dealerHand.isBlackjack -> GameResult.DEALER_WIN
+            playerHand.isBust -> GameResult.PLAYER_BUST
+            dealerHand.isBust -> GameResult.DEALER_BUST
+            playerHand.value > dealerHand.value -> GameResult.PLAYER_WIN
+            dealerHand.value > playerHand.value -> GameResult.DEALER_WIN
             else -> GameResult.PUSH
         }
     }
-
-    fun isFinished(): Boolean = state == GameState.FINISHED
-
-    fun isPlayerTurn(): Boolean = state == GameState.PLAYER_TURN
 }
