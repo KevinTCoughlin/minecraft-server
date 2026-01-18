@@ -101,11 +101,7 @@ packet-limiter:
     interval: 7.0
     max-packet-rate: 500.0
   kick-message: <red><lang:disconnect.exceeded_packet_rate>
-  overrides:
-    minecraft:place_recipe:
-      action: DROP
-      interval: 4.0
-      max-packet-rate: 5.0
+  overrides: {}
 player-auto-save:
   max-per-tick: -1
   rate: -1
