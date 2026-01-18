@@ -2,6 +2,7 @@ package com.example.blackjack.commands.litecommands
 
 import com.example.blackjack.BlackjackPlugin
 import com.example.blackjack.game.GameResult
+import com.example.blackjack.ui.ChatUI
 import dev.rollczi.litecommands.annotations.command.Command
 import dev.rollczi.litecommands.annotations.context.Context
 import dev.rollczi.litecommands.annotations.execute.Execute
@@ -36,7 +37,7 @@ class BlackjackBaseCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugi
         player.sendMessage(text("Starting a new game of Blackjack!", GOLD))
         player.sendMessage(Component.empty())
 
-        com.example.blackjack.ui.ChatUI.sendGameDisplay(player, session)
+        ChatUI.sendGameDisplay(player, session)
 
         if (session.isFinished) {
             gameManager.endGame(player.uniqueId)?.let { endResult ->

@@ -36,7 +36,7 @@ class BlackjackRulesCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plug
                 if (config.dealerStandsOnSoft17) GREEN else YELLOW
             )).append(newline())
             .append(text("  Double down: ", WHITE)).append(text(
-                if (config.allowDoubleDown) "Yes (${config.doubleDownOn.name.lowercase().replace('_', ' ')})" else "No",
+                if (config.allowDoubleDown) "Yes (${formatEnumName(config.doubleDownOn.name)})" else "No",
                 if (config.allowDoubleDown) GREEN else RED
             )).append(newline())
             .append(text("  Split: ", WHITE)).append(text(
@@ -44,7 +44,7 @@ class BlackjackRulesCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plug
                 if (config.allowSplit) GREEN else RED
             )).append(newline())
             .append(text("  Surrender: ", WHITE)).append(text(
-                if (config.allowSurrender) "${config.surrenderType.name.lowercase()} surrender" else "No",
+                if (config.allowSurrender) "${formatEnumName(config.surrenderType.name)} surrender" else "No",
                 if (config.allowSurrender) YELLOW else RED
             )).append(newline())
             .append(text("  Insurance: ", WHITE)).append(text(
@@ -62,4 +62,10 @@ class BlackjackRulesCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plug
         player.sendMessage(Component.empty())
         player.sendMessage(message)
     }
+
+    /**
+     * Formats an enum name for display (e.g., "ANY_TWO_CARDS" -> "any two cards")
+     */
+    private fun formatEnumName(name: String): String = 
+        name.lowercase().replace('_', ' ')
 }
