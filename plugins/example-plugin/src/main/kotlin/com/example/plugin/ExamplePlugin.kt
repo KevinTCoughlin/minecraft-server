@@ -17,7 +17,7 @@ class ExamplePlugin : JavaPlugin() {
         server.pluginManager.registerEvents(BlockBreakListener(this), this)
 
         logger.info("${description.name} v${description.version} has been enabled!")
-        logger.info("Welcome message: ${config.getString("welcome-message")}")
+        logger.info("Welcome message: ${config.getString("welcome-message") ?: "not set"}")
     }
 
     override fun onDisable() {
