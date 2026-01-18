@@ -1,11 +1,14 @@
 package com.example.blackjack
 
-import com.example.blackjack.commands.BlackjackCommand
+import com.example.blackjack.commands.litecommands.*
 import com.example.blackjack.game.DoubleDownRule
 import com.example.blackjack.game.GameConfig
 import com.example.blackjack.game.GameManager
 import com.example.blackjack.game.SurrenderType
 import com.example.blackjack.listeners.PlayerJoinListener
+import dev.rollczi.litecommands.LiteCommands
+import dev.rollczi.litecommands.bukkit.LiteBukkitFactory
+import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
 
 /**
@@ -22,6 +25,9 @@ class BlackjackPlugin : JavaPlugin() {
     /** Handles broadcasting game events to players. */
     lateinit var announcementManager: AnnouncementManager
         private set
+
+    /** LiteCommands instance for command management. */
+    private lateinit var liteCommands: LiteCommands<CommandSender>
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -93,15 +99,25 @@ class BlackjackPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        // Unregister LiteCommands
+        if (::liteCommands.isInitialized) {
+            liteCommands.unregister()
+        }
         logger.info("${pluginMeta.name} has been disabled!")
     }
 
     private fun registerCommands() {
-        val blackjackCommand = BlackjackCommand(this)
-        getCommand("bj")?.apply {
-            setExecutor(blackjackCommand)
-            tabCompleter = blackjackCommand
-        }
+        liteCommands = LiteBukkitFactory.builder(this)
+            .commands(
+                BlackjackBaseCommand(this),
+                BlackjackActionCommands(this),
+                BlackjackInsuranceCommand(this),
+                BlackjackStatsCommand(this),
+                BlackjackRulesCommand(this)
+            )
+            .build()
+
+        logger.info("LiteCommands initialized with 5 command handlers")
     }
 
     private fun registerListeners() {

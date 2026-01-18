@@ -48,9 +48,11 @@ minecraft-server/
 │   ├── spigot.yml            # Spigot configuration
 │   └── plugins/              # Compiled plugins
 ├── plugins/                   # Plugin source code
+│   ├── blackjack-plugin/     # Blackjack minigame (LiteCommands)
 │   └── example-plugin/       # Sample Kotlin plugin
 ├── scripts/                   # Management scripts
 ├── docker/                    # Docker configuration
+├── docs/                      # Documentation
 ├── build.gradle.kts          # Root Gradle config
 └── settings.gradle.kts       # Multi-project setup
 ```
@@ -93,10 +95,32 @@ DEPLOY_PORT=22
 
 ## Plugin Development
 
-### Building the Example Plugin
+### Available Plugins
+
+#### Blackjack Plugin
+A fully-featured Blackjack minigame with:
+- Chat-based gameplay
+- Player statistics tracking
+- Configurable house rules
+- Modern command framework using [LiteCommands](https://github.com/Rollczi/LiteCommands)
+
+**Commands**: `/bj [start|hit|stand|double|split|surrender|insurance|stats|rules]`
+
+See [docs/litecommands-refactor.md](docs/litecommands-refactor.md) for implementation details.
+
+#### Example Plugin
+A simple example plugin demonstrating basic Bukkit/Paper API usage.
+
+### Building Plugins
 
 ```bash
-# Build the plugin
+# Build the blackjack plugin
+./gradlew :plugins:blackjack-plugin:build
+
+# Build and copy to server/plugins/
+./gradlew :plugins:blackjack-plugin:deployToServer
+
+# Build the example plugin
 ./gradlew :plugins:example-plugin:build
 
 # Build and copy to server/plugins/
