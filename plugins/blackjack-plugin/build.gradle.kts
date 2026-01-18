@@ -8,6 +8,7 @@ val paperApiVersion: String by project
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://repo.panda-lang.org/releases")
 }
 
 dependencies {
@@ -16,6 +17,10 @@ dependencies {
 
     // Kotlin stdlib - include in JAR for plugin classloader
     implementation(kotlin("stdlib"))
+
+    // LiteCommands - Modern command framework
+    implementation("dev.rollczi:litecommands-bukkit:3.10.9")
+    implementation("dev.rollczi:litecommands-adventure:3.10.9")
 
     // Testing
     testImplementation(kotlin("test"))
@@ -36,6 +41,8 @@ tasks {
         archiveClassifier.set("")
         // Relocate Kotlin to avoid conflicts with other plugins
         relocate("kotlin", "com.example.blackjack.kotlin")
+        // Relocate LiteCommands to avoid conflicts with other plugins
+        relocate("dev.rollczi.litecommands", "com.example.blackjack.litecommands")
     }
 
     build {
@@ -71,5 +78,12 @@ java {
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
         jvmTarget = "21"
+        // Enable parameter names at runtime for LiteCommands
+        javaParameters = true
     }
+}
+
+tasks.withType<JavaCompile> {
+    // Enable parameter names at runtime for LiteCommands
+    options.compilerArgs.add("-parameters")
 }
