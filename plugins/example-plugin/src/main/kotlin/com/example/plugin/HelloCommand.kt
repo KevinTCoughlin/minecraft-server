@@ -22,7 +22,8 @@ class HelloCommand(private val plugin: ExamplePlugin) : CommandExecutor {
         }
 
         // Get prefix from config
-        val prefix = plugin.config.getString("message-prefix", "[Example]")
+        val defaultPrefix = "[Example]"
+        val prefix = plugin.config.getString("message-prefix", defaultPrefix) ?: defaultPrefix
         sender.sendMessage("$prefix $message")
 
         return true
