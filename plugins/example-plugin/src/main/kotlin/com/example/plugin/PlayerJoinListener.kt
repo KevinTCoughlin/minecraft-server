@@ -12,7 +12,7 @@ class PlayerJoinListener(private val plugin: ExamplePlugin) : Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     fun onPlayerJoin(event: PlayerJoinEvent) {
         val player = event.player
-        val welcomeMessage = plugin.config.getString("welcome-message", "Welcome to the server!") ?: "Welcome to the server!"
+        val welcomeMessage = plugin.config.getString("welcome-message") ?: "Welcome to the server!"
 
         // Send personalized welcome message
         player.sendMessage(
