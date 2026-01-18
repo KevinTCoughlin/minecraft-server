@@ -97,8 +97,36 @@ class GameManagerTest {
         manager.startGame(player1)
         manager.startGame(player2)
 
-        assertEquals(2, manager.getActiveGameCount())
+        assertEquals(2, manager.activeGameCount)
         assertTrue(manager.hasActiveGame(player1))
         assertTrue(manager.hasActiveGame(player2))
+    }
+
+    @Test
+    fun `game uses provided config`() {
+        val config = GameConfig(numberOfDecks = 6, blackjackPayout = 1.2)
+        val manager = GameManager(config)
+
+        assertEquals(config, manager.gameConfig)
+    }
+
+    @Test
+    fun `operator contains works`() {
+        val manager = GameManager()
+        val playerId = UUID.randomUUID()
+
+        assertFalse(playerId in manager)
+        manager.startGame(playerId)
+        assertTrue(playerId in manager)
+    }
+
+    @Test
+    fun `operator get works`() {
+        val manager = GameManager()
+        val playerId = UUID.randomUUID()
+
+        assertNull(manager[playerId])
+        val session = manager.startGame(playerId)
+        assertEquals(session, manager[playerId])
     }
 }

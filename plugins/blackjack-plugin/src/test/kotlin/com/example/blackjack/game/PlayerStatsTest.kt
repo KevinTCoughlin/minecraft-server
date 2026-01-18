@@ -12,6 +12,7 @@ class PlayerStatsTest {
         assertEquals(0, stats.losses)
         assertEquals(0, stats.pushes)
         assertEquals(0, stats.blackjacks)
+        assertEquals(0, stats.surrenders)
         assertEquals(0, stats.gamesPlayed)
         assertEquals(0, stats.currentWinStreak)
         assertEquals(0, stats.bestWinStreak)
@@ -80,6 +81,20 @@ class PlayerStatsTest {
     }
 
     @Test
+    fun `surrender increments surrenders and resets streak`() {
+        val stats = PlayerStats()
+        stats.recordResult(GameResult.PLAYER_WIN)
+        stats.recordResult(GameResult.PLAYER_WIN)
+        stats.recordResult(GameResult.SURRENDERED)
+
+        assertEquals(2, stats.wins)
+        assertEquals(0, stats.losses)
+        assertEquals(1, stats.surrenders)
+        assertEquals(0, stats.currentWinStreak)
+        assertEquals(2, stats.bestWinStreak)
+    }
+
+    @Test
     fun `best streak is updated only when exceeded`() {
         val stats = PlayerStats()
 
@@ -109,7 +124,18 @@ class PlayerStatsTest {
         stats.recordResult(GameResult.PLAYER_BLACKJACK)
         stats.recordResult(GameResult.PLAYER_BUST)
         stats.recordResult(GameResult.DEALER_BUST)
+        stats.recordResult(GameResult.SURRENDERED)
 
-        assertEquals(6, stats.gamesPlayed)
+        assertEquals(7, stats.gamesPlayed)
+    }
+
+    @Test
+    fun `recordResult returns current win streak`() {
+        val stats = PlayerStats()
+
+        assertEquals(1, stats.recordResult(GameResult.PLAYER_WIN))
+        assertEquals(2, stats.recordResult(GameResult.DEALER_BUST))
+        assertEquals(0, stats.recordResult(GameResult.DEALER_WIN))
+        assertEquals(1, stats.recordResult(GameResult.PLAYER_BLACKJACK))
     }
 }

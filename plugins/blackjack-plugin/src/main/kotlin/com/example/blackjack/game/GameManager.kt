@@ -11,11 +11,12 @@ data class PlayerStats(
     var losses: Int = 0,
     var pushes: Int = 0,
     var blackjacks: Int = 0,
+    var surrenders: Int = 0,
     var currentWinStreak: Int = 0,
     var bestWinStreak: Int = 0
 ) {
     /** Total number of games played. */
-    val gamesPlayed: Int get() = wins + losses + pushes
+    val gamesPlayed: Int get() = wins + losses + pushes + surrenders
 
     /**
      * Records a game result and updates statistics.
@@ -39,6 +40,10 @@ data class PlayerStats(
                 currentWinStreak = 0
             }
             GameResult.PUSH -> pushes++
+            GameResult.SURRENDERED -> {
+                surrenders++
+                currentWinStreak = 0
+            }
         }
         bestWinStreak = maxOf(bestWinStreak, currentWinStreak)
         return currentWinStreak
@@ -49,14 +54,19 @@ data class PlayerStats(
  * Manages active Blackjack game sessions and player statistics.
  *
  * Thread-safe for concurrent access.
+ *
+ * @property config The game configuration to use for all sessions.
  */
-class GameManager {
+class GameManager(private val config: GameConfig = GameConfig()) {
 
     private val activeSessions = ConcurrentHashMap<UUID, GameSession>()
     private val playerStats = ConcurrentHashMap<UUID, PlayerStats>()
 
     /** The number of currently active games. */
     val activeGameCount: Int get() = activeSessions.size
+
+    /** The current game configuration. */
+    val gameConfig: GameConfig get() = config
 
     /**
      * Starts a new game for the specified player.
@@ -65,7 +75,7 @@ class GameManager {
      * @return The newly created game session.
      */
     fun startGame(playerId: UUID): GameSession =
-        GameSession(playerId).also { activeSessions[playerId] = it }
+        GameSession(playerId, config).also { activeSessions[playerId] = it }
 
     /**
      * Gets the active session for a player, if one exists.
@@ -80,7 +90,7 @@ class GameManager {
      *
      * @param playerId The player's unique ID.
      */
-    operator fun contains(playerId: UUID): Boolean = playerId in activeSessions
+    operator fun contains(playerId: UUID): Boolean = activeSessions.containsKey(playerId)
 
     /** Result of ending a game, containing the outcome and current win streak. */
     data class GameEndResult(
@@ -108,4 +118,12 @@ class GameManager {
      */
     fun getStats(playerId: UUID): PlayerStats =
         playerStats.getOrPut(playerId) { PlayerStats() }
+
+    // === Legacy Compatibility Methods ===
+
+    /** Legacy method - use `get(playerId)` instead. */
+    fun getSession(playerId: UUID): GameSession? = get(playerId)
+
+    /** Legacy method - use `playerId in gameManager` instead. */
+    fun hasActiveGame(playerId: UUID): Boolean = playerId in this
 }

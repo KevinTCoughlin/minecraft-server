@@ -128,21 +128,6 @@ class Hand(
         } else null
     }
 
-    /** Legacy method for compatibility - returns cards list. */
-    fun getCards(): List<Card> = cards
-
-    /** Legacy method for compatibility - returns value. */
-    fun getValue(): Int = value
-
-    /** Legacy method for compatibility - returns isBust. */
-    fun isBust(): Boolean = isBust
-
-    /** Legacy method for compatibility - returns isBlackjack. */
-    fun isBlackjack(): Boolean = isBlackjack
-
-    /** Legacy method for compatibility - returns size. */
-    fun size(): Int = size
-
     /** Removes all cards from this hand and resets state. */
     fun clear() {
         _cards.clear()

@@ -7,14 +7,77 @@ message-prefix: "&6[Blackjack]&r"
 # Gameplay Settings
 # ===================
 gameplay:
-  # Number of decks to use (1-8)
-  decks: 1
+  # ----- Deck Settings -----
+  # Number of decks to use (1-8). More decks = slightly better house edge.
+  # Common: 1 (single deck), 2, 6, or 8 (shoe game)
+  decks: 6
+
+  # Reshuffle when this percentage of cards remain (0.1-0.5)
+  # Lower = deeper penetration, higher = more frequent shuffles
+  reshuffle-threshold: 0.25
+
+  # ----- Dealer Rules -----
   # Dealer stands on soft 17 (true) or hits on soft 17 (false)
+  # Standing on soft 17 is more player-favorable
   dealer-stands-on-soft-17: true
-  # Allow insurance bet when dealer shows Ace (future feature)
-  allow-insurance: false
+
+  # Dealer peeks for blackjack when showing Ace or 10-value card
+  # If true, game ends immediately when dealer has blackjack
+  dealer-peeks: true
+
+  # ----- Double Down -----
+  # Allow players to double their bet and receive exactly one more card
+  allow-double-down: true
+
+  # When can players double down?
+  # Options: "any" (any two cards), "9-10-11", "10-11", "11" (eleven only)
+  double-down-on: "any"
+
+  # Allow doubling down after splitting a pair
+  allow-double-after-split: true
+
+  # ----- Splitting -----
+  # Allow players to split pairs into two hands
+  allow-split: true
+
+  # Maximum number of hands from splitting (2-4)
+  max-split-hands: 4
+
+  # Allow re-splitting aces (splitting aces again if dealt another ace)
+  allow-resplit-aces: false
+
+  # Allow hitting after splitting aces (normally only one card is dealt)
+  allow-hit-split-aces: false
+
+  # ----- Surrender -----
+  # Allow players to surrender and forfeit half their bet
+  allow-surrender: true
+
+  # Type of surrender: "late" (after dealer peeks), "early" (before), "none"
+  # Early surrender is very rare and player-favorable
+  surrender-type: "late"
+
+  # ----- Insurance -----
+  # Allow insurance bet when dealer shows Ace (pays 2:1 if dealer has blackjack)
+  allow-insurance: true
+
+  # Allow even money option (take 1:1 payout on blackjack vs dealer Ace)
+  allow-even-money: true
+
+  # Insurance payout multiplier (typically 2.0 for 2:1)
+  insurance-payout: 2.0
+
+  # ----- Payouts -----
   # Blackjack payout multiplier (1.5 = 3:2, 1.2 = 6:5)
+  # 3:2 is traditional and player-favorable; 6:5 increases house edge significantly
   blackjack-payout: 1.5
+
+  # ----- Special Rules -----
+  # Five Card Charlie: auto-win with 5 cards without busting (rare rule)
+  five-card-charlie: false
+
+  # Number of cards for Charlie win (5-7)
+  charlie-card-count: 5
 
 # ===================
 # Server Announcements
@@ -57,7 +120,8 @@ join-message:
     - "&6&l=== BLACKJACK ==="
     - "&ePlay blackjack right in chat!"
     - "&7Use &f/bj &7to start a game"
-    - "&7Commands: &f/bj hit&7, &f/bj stand&7, &f/bj stats"
+    - "&7Actions: &f/bj hit&7, &f/bj stand&7, &f/bj double&7, &f/bj split&7, &f/bj surrender"
+    - "&7Other: &f/bj stats&7, &f/bj rules"
     - "&6&l=================="
 
 # ===================
