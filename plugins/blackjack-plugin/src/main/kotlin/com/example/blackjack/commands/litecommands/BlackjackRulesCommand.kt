@@ -15,11 +15,11 @@ import org.bukkit.entity.Player
  * Handles rules subcommand to display house rules
  */
 @Command(name = "bj rules")
-class BlackjackRulesCommand(private val plugin: BlackjackPlugin) {
+class BlackjackRulesCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     @Execute
     fun rules(@Context player: Player) {
-        val config = plugin.gameManager.gameConfig
+        val config = gameManager.gameConfig
         val divider = text("═══════════════════════════════", GOLD)
 
         val message = Component.empty()

@@ -1,7 +1,6 @@
 package com.example.blackjack.commands.litecommands
 
 import com.example.blackjack.BlackjackPlugin
-import com.example.blackjack.game.GameManager
 import com.example.blackjack.game.GameResult
 import dev.rollczi.litecommands.annotations.command.Command
 import dev.rollczi.litecommands.annotations.context.Context
@@ -18,10 +17,7 @@ import org.bukkit.entity.Player
  */
 @Command(name = "bj", aliases = ["blackjack"])
 @Permission("blackjack.play")
-class BlackjackBaseCommand(private val plugin: BlackjackPlugin) {
-
-    private val gameManager: GameManager
-        get() = plugin.gameManager
+class BlackjackBaseCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     /**
      * Default executor when /bj is called without arguments
@@ -46,25 +42,6 @@ class BlackjackBaseCommand(private val plugin: BlackjackPlugin) {
             gameManager.endGame(player.uniqueId)?.let { endResult ->
                 handleGameEnd(player, endResult)
             }
-        }
-    }
-
-    private fun handleGameEnd(player: Player, endResult: GameManager.GameEndResult) {
-        val result = endResult.result
-        val announcements = plugin.announcementManager
-
-        when (result) {
-            GameResult.PLAYER_BLACKJACK -> announcements.announceBlackjack(player)
-            GameResult.DEALER_BUST -> {
-                announcements.announceDealerBust(player)
-                announcements.announceWin(player, result)
-            }
-            GameResult.PLAYER_WIN -> announcements.announceWin(player, result)
-            else -> Unit
-        }
-
-        if (endResult.winStreak > 0) {
-            announcements.announceWinStreak(player, endResult.winStreak)
         }
     }
 }

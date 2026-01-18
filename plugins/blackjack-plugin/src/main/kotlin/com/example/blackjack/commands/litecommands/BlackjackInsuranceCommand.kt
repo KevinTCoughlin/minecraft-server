@@ -1,8 +1,6 @@
 package com.example.blackjack.commands.litecommands
 
 import com.example.blackjack.BlackjackPlugin
-import com.example.blackjack.game.GameManager
-import com.example.blackjack.game.GameResult
 import com.example.blackjack.ui.ChatUI
 import dev.rollczi.litecommands.annotations.argument.Arg
 import dev.rollczi.litecommands.annotations.command.Command
@@ -16,10 +14,7 @@ import org.bukkit.entity.Player
  * Handles insurance decision subcommand
  */
 @Command(name = "bj insurance")
-class BlackjackInsuranceCommand(private val plugin: BlackjackPlugin) {
-
-    private val gameManager: GameManager
-        get() = plugin.gameManager
+class BlackjackInsuranceCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     @Execute
     fun insurance(@Context player: Player, @Arg decision: String) {
@@ -59,28 +54,5 @@ class BlackjackInsuranceCommand(private val plugin: BlackjackPlugin) {
             }
             gameManager.endGame(player.uniqueId)?.let { handleGameEnd(player, it) }
         }
-    }
-
-    private fun handleGameEnd(player: Player, endResult: GameManager.GameEndResult) {
-        val result = endResult.result
-        val announcements = plugin.announcementManager
-
-        when (result) {
-            GameResult.PLAYER_BLACKJACK -> announcements.announceBlackjack(player)
-            GameResult.DEALER_BUST -> {
-                announcements.announceDealerBust(player)
-                announcements.announceWin(player, result)
-            }
-            GameResult.PLAYER_WIN -> announcements.announceWin(player, result)
-            else -> Unit
-        }
-
-        if (endResult.winStreak > 0) {
-            announcements.announceWinStreak(player, endResult.winStreak)
-        }
-    }
-
-    private fun Player.sendError(message: String) {
-        sendMessage(text(message, RED))
     }
 }

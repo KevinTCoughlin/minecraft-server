@@ -12,11 +12,11 @@ import org.bukkit.entity.Player
  * Handles stats subcommand to display player statistics
  */
 @Command(name = "bj stats")
-class BlackjackStatsCommand(private val plugin: BlackjackPlugin) {
+class BlackjackStatsCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     @Execute
     fun stats(@Context player: Player) {
         player.sendMessage(Component.empty())
-        player.sendMessage(ChatUI.renderStats(plugin.gameManager.getStats(player.uniqueId)))
+        player.sendMessage(ChatUI.renderStats(gameManager.getStats(player.uniqueId)))
     }
 }
