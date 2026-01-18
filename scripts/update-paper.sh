@@ -4,7 +4,7 @@ set -euo pipefail
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="${SCRIPT_DIR}/../server"
-MC_VERSION="${MC_VERSION:-1.21.4}"
+MC_VERSION="${MC_VERSION:-1.21.11}"
 JAR_NAME="paper.jar"
 
 # Colors for output
