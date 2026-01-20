@@ -52,7 +52,6 @@ services:
       VIEW_DISTANCE: 10
       SIMULATION_DISTANCE: 10
       SPAWN_PROTECTION: 16
-      
       # Experimental features
       INITIAL_ENABLED_PACKS: "vanilla,bundle"
 
