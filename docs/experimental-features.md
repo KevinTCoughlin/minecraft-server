@@ -122,13 +122,7 @@ To enable additional experimental datapacks:
 
 Once the bundle datapack is enabled:
 
-1. **Crafting**: Bundles are crafted with 1 String and 1 Leather in a crafting table:
-   ```
-   [ ]  [S]  [ ]     S = String
-   [ ]  [ ]  [ ]     L = Leather
-   [ ]  [L]  [ ]
-   ```
-   (String in top-center, Leather in bottom-center)
+1. **Crafting**: Bundles are crafted with 6 String and 1 Rabbit Hide in a crafting table (Minecraft 1.21+):
 2. **Using**: Right-click to place items in, right-click while sneaking to take items out
 3. **Capacity**: Bundles can hold up to 64 item units (one full stack = 64 units)
 4. **Dyeing**: Bundles can be dyed using 1 Bundle + 1 Dye
