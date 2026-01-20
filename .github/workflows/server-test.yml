@@ -1,0 +1,254 @@
+name: Server Smoke Test
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'scripts/**'
+      - 'server/**'
+      - '.github/workflows/server-test.yml'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'scripts/**'
+      - 'server/**'
+      - '.github/workflows/server-test.yml'
+  workflow_dispatch:
+    inputs:
+      mc_version:
+        description: 'Minecraft version (e.g., 1.21.11 or snapshot)'
+        required: false
+        default: 'latest'
+      java_version:
+        description: 'Java version (21 or 25)'
+        required: false
+        default: '21'
+
+env:
+  PAPER_API: 'https://api.papermc.io/v2'
+  SERVER_DIR: server
+  STARTUP_TIMEOUT: 120
+  SHUTDOWN_TIMEOUT: 30
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Stable: Java 21 + G1GC (production config)
+          - java: '21'
+            gc: 'g1gc'
+            mc: 'stable'
+            name: 'Stable (Java 21, G1GC)'
+          # Preview: Java 25 + ZGC (MC 26.1+ config)
+          - java: '25'
+            gc: 'zgc'
+            mc: 'snapshot'
+            name: 'Snapshot (Java 25, ZGC)'
+
+    name: ${{ matrix.name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+
+      - name: Get Paper version info
+        id: paper
+        run: |
+          if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
+            # Get latest snapshot/experimental version
+            MC_VERSION=$(curl -s "${PAPER_API}/projects/paper" | jq -r '.versions[-1]')
+          else
+            # Get latest stable version
+            MC_VERSION=$(curl -s "${PAPER_API}/projects/paper" | jq -r '.versions | map(select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last')
+          fi
+
+          # Get latest build for this version
+          BUILD=$(curl -s "${PAPER_API}/projects/paper/versions/${MC_VERSION}" | jq -r '.builds[-1]')
+
+          echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
+          echo "build=${BUILD}" >> $GITHUB_OUTPUT
+          echo "Using Paper ${MC_VERSION} build ${BUILD}"
+
+      - name: Download Paper
+        run: |
+          MC_VERSION="${{ steps.paper.outputs.mc_version }}"
+          BUILD="${{ steps.paper.outputs.build }}"
+
+          mkdir -p $SERVER_DIR
+          curl -o "$SERVER_DIR/paper.jar" \
+            "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar"
+
+          echo "Downloaded paper-${MC_VERSION}-${BUILD}.jar"
+          ls -la $SERVER_DIR/paper.jar
+
+      - name: Configure server
+        run: |
+          cd $SERVER_DIR
+
+          # Accept EULA
+          echo "eula=true" > eula.txt
+
+          # Minimal server.properties for testing
+          cat > server.properties << 'EOF'
+          server-port=25565
+          online-mode=false
+          max-players=1
+          spawn-protection=0
+          view-distance=4
+          simulation-distance=4
+          level-type=flat
+          generate-structures=false
+          spawn-monsters=false
+          spawn-animals=false
+          enable-command-block=false
+          EOF
+
+          echo "Server configured"
+
+      - name: Start server
+        id: start
+        run: |
+          cd $SERVER_DIR
+
+          export MIN_RAM="1G"
+          export MAX_RAM="2G"
+          export GC_TYPE="${{ matrix.gc }}"
+
+          echo "Starting server with GC_TYPE=$GC_TYPE, Java ${{ matrix.java }}"
+
+          # Start server in background
+          java -version
+
+          if [[ "$GC_TYPE" == "zgc" ]]; then
+            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
+              -XX:+UseZGC -XX:+ZGenerational \
+              -XX:+AlwaysPreTouch -XX:+DisableExplicitGC \
+              -jar paper.jar --nogui &
+          else
+            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
+              -XX:+UseG1GC -XX:+ParallelRefProcEnabled \
+              -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions \
+              -XX:+DisableExplicitGC -XX:+AlwaysPreTouch \
+              -jar paper.jar --nogui &
+          fi
+
+          SERVER_PID=$!
+          echo "pid=${SERVER_PID}" >> $GITHUB_OUTPUT
+          echo "Server started with PID ${SERVER_PID}"
+
+      - name: Wait for server startup
+        run: |
+          cd $SERVER_DIR
+
+          echo "Waiting for server to start (timeout: ${STARTUP_TIMEOUT}s)..."
+
+          ELAPSED=0
+          while [[ $ELAPSED -lt $STARTUP_TIMEOUT ]]; do
+            if grep -q "Done" logs/latest.log 2>/dev/null; then
+              echo "Server started successfully in ${ELAPSED}s"
+              grep "Done" logs/latest.log
+              exit 0
+            fi
+
+            # Check if server crashed
+            if ! kill -0 ${{ steps.start.outputs.pid }} 2>/dev/null; then
+              echo "Server process died!"
+              cat logs/latest.log 2>/dev/null || echo "No logs found"
+              exit 1
+            fi
+
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+            echo "Waiting... ${ELAPSED}s"
+          done
+
+          echo "Server startup timed out after ${STARTUP_TIMEOUT}s"
+          cat logs/latest.log 2>/dev/null || echo "No logs found"
+          exit 1
+
+      - name: Verify server health
+        run: |
+          cd $SERVER_DIR
+
+          echo "Checking server logs for errors..."
+
+          # Check for critical errors
+          if grep -iE "(FATAL|SEVERE|Exception|Error.*at )" logs/latest.log | grep -v "No operations remaining" | head -20; then
+            echo "Warning: Found potential errors in logs (may be non-critical)"
+          fi
+
+          # Verify no crash reports
+          if ls crash-reports/*.txt 2>/dev/null; then
+            echo "Found crash reports!"
+            cat crash-reports/*.txt
+            exit 1
+          fi
+
+          echo "Server health check passed"
+
+      - name: Stop server gracefully
+        if: always()
+        run: |
+          PID="${{ steps.start.outputs.pid }}"
+
+          if [[ -n "$PID" ]] && kill -0 $PID 2>/dev/null; then
+            echo "Stopping server (PID: $PID)..."
+
+            # Send stop command via stdin if possible, otherwise SIGTERM
+            kill -TERM $PID 2>/dev/null || true
+
+            # Wait for graceful shutdown
+            ELAPSED=0
+            while [[ $ELAPSED -lt $SHUTDOWN_TIMEOUT ]]; do
+              if ! kill -0 $PID 2>/dev/null; then
+                echo "Server stopped gracefully in ${ELAPSED}s"
+                exit 0
+              fi
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            done
+
+            # Force kill if still running
+            echo "Force killing server..."
+            kill -9 $PID 2>/dev/null || true
+          fi
+
+          echo "Server stopped"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd $SERVER_DIR
+
+          echo "Cleaning up..."
+
+          # Remove world data (generated during test)
+          rm -rf world world_nether world_the_end
+
+          # Remove session locks
+          find . -name "session.lock" -delete 2>/dev/null || true
+
+          # Keep logs for debugging but remove other generated files
+          rm -f paper.jar eula.txt server.properties
+          rm -rf cache libraries versions
+
+          echo "Cleanup complete"
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-${{ matrix.name }}
+          path: |
+            server/logs/
+            server/crash-reports/
+          retention-days: 7
