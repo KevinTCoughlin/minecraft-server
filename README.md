@@ -1,6 +1,13 @@
 # PaperMC Minecraft Server
 
-A config-driven PaperMC server setup with Kotlin/Java plugin development capability, manageable via shell scripts and Docker.
+A config-driven PaperMC server setup with Kotlin/Java plugin development capability, manageable via shell scripts and Docker. **Features experimental JVM optimizations and Minecraft datapacks for enhanced performance and gameplay.**
+
+## Features
+
+✨ **Experimental Features Enabled**
+- Advanced JVM optimizations with Aikar's flags
+- Bundle datapack for improved inventory management
+- See [Experimental Features Guide](docs/experimental-features.md) for details
 
 ## Prerequisites
 
@@ -61,11 +68,29 @@ minecraft-server/
 
 | Script | Description |
 |--------|-------------|
-| `start.sh` | Start server with optimized JVM flags (Aikar's flags) |
+| `start.sh` | Start server with optimized JVM flags (Aikar's flags + experimental features) |
 | `stop.sh` | Graceful shutdown via RCON |
 | `update-paper.sh` | Download/update to latest PaperMC build |
 | `backup.sh` | Archive world folders with timestamp |
 | `deploy.sh` | Rsync to remote host |
+
+### JVM Experimental Features
+
+This server uses optimized JVM flags including experimental features for maximum performance:
+- **G1 Garbage Collector** with advanced tuning
+- **Experimental VM Options** enabled for cutting-edge optimizations
+- **Aikar's Flags** - Industry-standard Minecraft server JVM configuration
+
+**📖 See [Experimental Features Guide](docs/experimental-features.md) for complete details, configuration options, and troubleshooting.**
+
+### Minecraft Experimental Features
+
+Experimental Minecraft features are enabled via datapacks:
+- **Bundle** datapack - Enables bundle items for inventory management
+- Configured in `server.properties` via `initial-enabled-packs=vanilla,bundle`
+- ⚠️ **Warning**: Experimental features may change between updates. Always backup worlds!
+
+**📖 See [Experimental Features Guide](docs/experimental-features.md) for usage instructions and how to enable additional features.**
 
 ### Environment Variables
 
