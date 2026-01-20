@@ -5,8 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="${SCRIPT_DIR}/../server"
 JAR_NAME="paper.jar"
-MIN_RAM="${MIN_RAM:-2G}"
+MIN_RAM="${MIN_RAM:-4G}"
 MAX_RAM="${MAX_RAM:-4G}"
+GC_TYPE="${GC_TYPE:-g1gc}"  # g1gc or zgc
 
 # Colors for output
 RED='\033[0;31m'
@@ -32,44 +33,68 @@ if [[ ! -f "eula.txt" ]] || ! grep -q "eula=true" eula.txt; then
     echo "eula=true" > eula.txt
 fi
 
+# Determine java command (respect JAVA_HOME if set)
+if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+    JAVA_CMD="$JAVA_HOME/bin/java"
+else
+    JAVA_CMD="java"
+fi
+
 # Check Java version
-if ! command -v java &> /dev/null; then
+if ! command -v "$JAVA_CMD" &> /dev/null; then
     log_error "Java not found. Please install Java 21 or later."
     exit 1
 fi
 
-JAVA_VERSION=$(java -version 2>&1 | head -n1 | cut -d'"' -f2 | cut -d'.' -f1)
+JAVA_VERSION=$("$JAVA_CMD" -version 2>&1 | head -n1 | cut -d'"' -f2 | cut -d'.' -f1)
 if [[ "$JAVA_VERSION" -lt 21 ]]; then
     log_error "Java 21 or later is required. Found Java $JAVA_VERSION"
     exit 1
 fi
 
-log_info "Starting PaperMC server with ${MIN_RAM} - ${MAX_RAM} RAM..."
+log_info "Using Java $JAVA_VERSION ($JAVA_CMD)"
+log_info "Starting PaperMC server with ${MIN_RAM} - ${MAX_RAM} RAM, GC: ${GC_TYPE^^}..."
 
-# Optimized JVM flags for Minecraft (Aikar's flags)
-# See: https://docs.papermc.io/paper/aikars-flags
-exec java \
-    -Xms${MIN_RAM} \
-    -Xmx${MAX_RAM} \
-    -XX:+UseG1GC \
-    -XX:+ParallelRefProcEnabled \
-    -XX:MaxGCPauseMillis=200 \
-    -XX:+UnlockExperimentalVMOptions \
-    -XX:+DisableExplicitGC \
-    -XX:+AlwaysPreTouch \
-    -XX:G1NewSizePercent=30 \
-    -XX:G1MaxNewSizePercent=40 \
-    -XX:G1HeapRegionSize=8M \
-    -XX:G1ReservePercent=20 \
-    -XX:G1HeapWastePercent=5 \
-    -XX:G1MixedGCCountTarget=4 \
-    -XX:InitiatingHeapOccupancyPercent=15 \
-    -XX:G1MixedGCLiveThresholdPercent=90 \
-    -XX:G1RSetUpdatingPauseTimePercent=5 \
-    -XX:SurvivorRatio=32 \
-    -XX:+PerfDisableSharedMem \
-    -XX:MaxTenuringThreshold=1 \
-    -Dusing.aikars.flags=https://mcflags.emc.gs \
-    -Daikars.new.flags=true \
-    -jar "$JAR_NAME" \
-    --nogui
+# Build JVM flags based on GC type
+JVM_FLAGS=(
+    "-Xms${MIN_RAM}"
+    "-Xmx${MAX_RAM}"
+)
+
+if [[ "${GC_TYPE,,}" == "zgc" ]]; then
+    # ZGC - low latency collector (default in MC 26.1+, requires Java 21+)
+    JVM_FLAGS+=(
+        "-XX:+UseZGC"
+        "-XX:+ZGenerational"
+        "-XX:+AlwaysPreTouch"
+        "-XX:+DisableExplicitGC"
+        "-XX:+PerfDisableSharedMem"
+    )
+else
+    # G1GC - Aikar's flags optimized for Minecraft
+    # See: https://docs.papermc.io/paper/aikars-flags
+    JVM_FLAGS+=(
+        "-XX:+UseG1GC"
+        "-XX:+ParallelRefProcEnabled"
+        "-XX:MaxGCPauseMillis=200"
+        "-XX:+UnlockExperimentalVMOptions"
+        "-XX:+DisableExplicitGC"
+        "-XX:+AlwaysPreTouch"
+        "-XX:G1NewSizePercent=30"
+        "-XX:G1MaxNewSizePercent=40"
+        "-XX:G1HeapRegionSize=8M"
+        "-XX:G1ReservePercent=20"
+        "-XX:G1HeapWastePercent=5"
+        "-XX:G1MixedGCCountTarget=4"
+        "-XX:InitiatingHeapOccupancyPercent=15"
+        "-XX:G1MixedGCLiveThresholdPercent=90"
+        "-XX:G1RSetUpdatingPauseTimePercent=5"
+        "-XX:SurvivorRatio=32"
+        "-XX:+PerfDisableSharedMem"
+        "-XX:MaxTenuringThreshold=1"
+        "-Dusing.aikars.flags=https://mcflags.emc.gs"
+        "-Daikars.new.flags=true"
+    )
+fi
+
+exec "$JAVA_CMD" "${JVM_FLAGS[@]}" -jar "$JAR_NAME" --nogui

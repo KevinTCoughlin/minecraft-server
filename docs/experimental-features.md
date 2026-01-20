@@ -8,7 +8,7 @@ This server has been configured with experimental features at two levels:
 1. **JVM Level** - Advanced Java Virtual Machine optimizations
 2. **Minecraft Level** - Experimental game features via datapacks
 
-**Note**: PaperMC 1.21.4 requires Java 21 or later. While many of the JVM flags work with earlier versions, Java 21+ is required for the Minecraft server itself.
+**Note**: PaperMC 1.21.x requires Java 21+. Minecraft 26.1+ requires Java 25+. This server supports both G1GC (Aikar's flags) and ZGC garbage collectors.
 
 ## JVM Experimental Features
 
@@ -42,6 +42,33 @@ The server uses comprehensive JVM optimization flags including experimental feat
 ```
 
 **Note**: The `-Dusing.aikars.flags` and `-Daikars.new.flags` properties are marker flags that identify the server as using Aikar's optimized configuration. They don't affect runtime behavior but may be used by plugins and monitoring tools for detection and troubleshooting.
+
+### ZGC (Alternative - MC 26.1+ Default)
+
+For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=zgc` to enable:
+
+```bash
+-XX:+UseZGC
+-XX:+ZGenerational
+-XX:+AlwaysPreTouch
+-XX:+DisableExplicitGC
+-XX:+PerfDisableSharedMem
+```
+
+**ZGC Benefits**:
+- Sub-millisecond pause times (vs G1GC's ~200ms target)
+- Better suited for large heaps (8GB+)
+- Generational mode improves throughput
+
+**When to use ZGC**:
+- Minecraft 26.1+ (default)
+- Large servers with 8GB+ RAM
+- When minimizing lag spikes is critical
+
+**When to use G1GC**:
+- Minecraft 1.21.x and earlier
+- Smaller servers (2-4GB RAM)
+- Maximum compatibility with existing setups
 
 ### Benefits
 
@@ -132,10 +159,11 @@ Once the bundle datapack is enabled:
 ### JVM Flags Issues
 
 **Problem**: Server won't start with experimental flags
-- **Solution**: Check Java version (requires Java 21+): `java -version`
-  - On Ubuntu/Debian: `sudo apt install openjdk-21-jre-headless`
-  - On macOS with Homebrew: `brew install openjdk@21`
+- **Solution**: Check Java version (requires Java 21+ for MC 1.21.x, Java 25+ for MC 26.1+): `java -version`
+  - On Ubuntu/Debian: `sudo apt install openjdk-21-jre-headless` (or openjdk-25 when available)
+  - On macOS with Homebrew: `brew install --cask temurin@25`
   - On Windows: Download from [Adoptium](https://adoptium.net/)
+  - Set `JAVA_HOME` to use a specific Java version
 - **Solution**: Check for typos in flag configuration
 - **Solution**: Try disabling specific flags one at a time
 
@@ -183,7 +211,8 @@ To verify experimental features are working:
 
 - [PaperMC Configuration Documentation](https://docs.papermc.io/paper/reference/configuration/)
 - [Minecraft Wiki - Experiments](https://minecraft.wiki/w/Experiments)
-- [Java Performance Tuning Guide](https://docs.oracle.com/en/java/javase/21/gctuning/)
+- [Java Performance Tuning Guide](https://docs.oracle.com/en/java/javase/25/gctuning/)
+- [ZGC Documentation](https://wiki.openjdk.org/display/zgc)
 - [Aikar's Flags Explained](https://mcflags.emc.gs/)
 
 ## Support
