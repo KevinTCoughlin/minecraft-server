@@ -61,11 +61,26 @@ minecraft-server/
 
 | Script | Description |
 |--------|-------------|
-| `start.sh` | Start server with optimized JVM flags (Aikar's flags) |
+| `start.sh` | Start server with optimized JVM flags (Aikar's flags + experimental features) |
 | `stop.sh` | Graceful shutdown via RCON |
 | `update-paper.sh` | Download/update to latest PaperMC build |
 | `backup.sh` | Archive world folders with timestamp |
 | `deploy.sh` | Rsync to remote host |
+
+### JVM Experimental Features
+
+This server uses optimized JVM flags including experimental features for maximum performance:
+- **G1 Garbage Collector** with advanced tuning
+- **Experimental VM Options** enabled for cutting-edge optimizations
+- **Aikar's Flags** - Industry-standard Minecraft server JVM configuration
+- See [PaperMC Aikar's Flags Documentation](https://docs.papermc.io/paper/aikars-flags) for details
+
+### Minecraft Experimental Features
+
+Experimental Minecraft features are enabled via datapacks:
+- **Bundle** datapack - Enables bundle items for inventory management
+- Configured in `server.properties` via `initial-enabled-packs=vanilla,bundle`
+- ⚠️ **Warning**: Experimental features may change between updates. Always backup worlds!
 
 ### Environment Variables
 
