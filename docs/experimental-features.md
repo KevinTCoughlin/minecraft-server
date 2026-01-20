@@ -8,6 +8,8 @@ This server has been configured with experimental features at two levels:
 1. **JVM Level** - Advanced Java Virtual Machine optimizations
 2. **Minecraft Level** - Experimental game features via datapacks
 
+**Note**: PaperMC 1.21.4 requires Java 21 or later. While many of the JVM flags work with earlier versions, Java 21+ is required for the Minecraft server itself.
+
 ## JVM Experimental Features
 
 ### What's Enabled
@@ -33,7 +35,13 @@ The server uses comprehensive JVM optimization flags including experimental feat
 -XX:SurvivorRatio=32
 -XX:+PerfDisableSharedMem
 -XX:MaxTenuringThreshold=1
+
+# Marker flags for tracking and identification
+-Dusing.aikars.flags=https://mcflags.emc.gs
+-Daikars.new.flags=true
 ```
+
+**Note**: The `-Dusing.aikars.flags` and `-Daikars.new.flags` properties are marker flags that identify the server as using Aikar's optimized configuration. They don't affect runtime behavior but may be used by plugins and monitoring tools for detection and troubleshooting.
 
 ### Benefits
 
@@ -114,11 +122,13 @@ To enable additional experimental datapacks:
 
 Once the bundle datapack is enabled:
 
-1. **Crafting**: Bundles are crafted with 1 String and 1 Leather
+1. **Crafting**: Bundles are crafted with 1 String and 1 Leather in a crafting table:
    ```
-   [String in center-top slot]
-   [Leather in center-bottom slot]
+   [ ]  [S]  [ ]     S = String
+   [ ]  [ ]  [ ]     L = Leather
+   [ ]  [L]  [ ]
    ```
+   (String in top-center, Leather in bottom-center)
 2. **Using**: Right-click to place items in, right-click while sneaking to take items out
 3. **Capacity**: Bundles can hold up to 64 item units (one full stack = 64 units)
 4. **Dyeing**: Bundles can be dyed using 1 Bundle + 1 Dye
