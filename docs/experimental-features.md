@@ -96,9 +96,9 @@ To enable additional experimental datapacks:
    ```
 
 3. **Available Experimental Packs** (varies by Minecraft version):
-   - `bundle` - Bundle items
-   - `update_1_21` - Future 1.21.x features (if available in snapshots)
-   - Check [Minecraft Wiki - Experiments](https://minecraft.wiki/w/Experiments) for current options
+   - `bundle` - Bundle items (enabled by default in this server)
+   - For Minecraft 1.21.4, the Bundle feature is the primary experimental datapack
+   - Check [Minecraft Wiki - Experiments](https://minecraft.wiki/w/Experiments) for version-specific experimental features
 
 ### Important Warnings
 
@@ -114,16 +114,24 @@ To enable additional experimental datapacks:
 
 Once the bundle datapack is enabled:
 
-1. **Crafting**: Bundles are crafted with leather and string (recipe may vary by version)
+1. **Crafting**: Bundles are crafted with 1 String and 1 Leather
+   ```
+   [String in center-top slot]
+   [Leather in center-bottom slot]
+   ```
 2. **Using**: Right-click to place items in, right-click while sneaking to take items out
 3. **Capacity**: Bundles can hold up to 64 item units (one full stack = 64 units)
+4. **Dyeing**: Bundles can be dyed using 1 Bundle + 1 Dye
 
 ## Troubleshooting
 
 ### JVM Flags Issues
 
 **Problem**: Server won't start with experimental flags
-- **Solution**: Update to Java 21 or later: `java -version`
+- **Solution**: Check Java version (requires Java 21+): `java -version`
+  - On Ubuntu/Debian: `sudo apt install openjdk-21-jre-headless`
+  - On macOS with Homebrew: `brew install openjdk@21`
+  - On Windows: Download from [Adoptium](https://adoptium.net/)
 - **Solution**: Check for typos in flag configuration
 - **Solution**: Try disabling specific flags one at a time
 
