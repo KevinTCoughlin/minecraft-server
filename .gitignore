@@ -55,3 +55,4 @@ backups/
 # Misc
 *.log
 *.tmp
+.console_history
