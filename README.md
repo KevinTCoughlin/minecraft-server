@@ -1,5 +1,8 @@
 # PaperMC Minecraft Server
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/KevinTCoughlin)](https://github.com/sponsors/KevinTCoughlin)
+
 A config-driven PaperMC server setup with Kotlin/Java plugin development capability, manageable via shell scripts and Docker. **Features experimental JVM optimizations and Minecraft datapacks for enhanced performance and gameplay.**
 
 ## Features
