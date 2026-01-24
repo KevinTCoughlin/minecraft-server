@@ -21,16 +21,22 @@ A config-driven PaperMC server setup with Kotlin/Java plugin development capabil
 
 ## Quick Start
 
-### Local Development
+```bash
+git clone https://github.com/KevinTCoughlin/minecraft-server.git
+cd minecraft-server
+./setup.sh           # one-click setup
+./scripts/start.sh   # start server
+# Connect to localhost:25565
+```
+
+Requires Java 21+ (`brew install openjdk@21`)
+
+### Manual Setup
 
 ```bash
-# 1. Download PaperMC
-./scripts/update-paper.sh
-
-# 2. Start the server
-./scripts/start.sh
-
-# 3. Connect with Minecraft client to localhost:25565
+./scripts/update-paper.sh   # download PaperMC
+./scripts/start.sh          # start server
+./scripts/stop.sh           # graceful stop
 ```
 
 ### Docker
