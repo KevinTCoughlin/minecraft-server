@@ -15,30 +15,28 @@ class FartCommand : CommandExecutor {
         args: Array<out String>
     ): Boolean {
         if (sender is Player) {
-            val player = sender
-            
             // Play a fart-like sound effect using Minecraft's built-in sounds
             // ENTITY_RAVAGER_STUNNED is a guttural sound that works well for this
-            player.world.playSound(
-                player.location,
+            sender.world.playSound(
+                sender.location,
                 Sound.ENTITY_RAVAGER_STUNNED,
                 1.0f,  // volume
                 0.5f   // pitch (lower pitch makes it sound more like a fart)
             )
             
             // Send a message to the player
-            player.sendMessage("§6💨 *Fart noise* 💨")
+            sender.sendMessage("§6💨 *Fart noise* 💨")
             
             // Optionally broadcast to nearby players
-            val nearbyPlayers = player.world.getNearbyEntities(
-                player.location, 
+            val nearbyPlayers = sender.world.getNearbyEntities(
+                sender.location, 
                 20.0, 
                 20.0, 
                 20.0
-            ).filterIsInstance<Player>().filter { it != player }
+            ).filterIsInstance<Player>().filter { it != sender }
             
             nearbyPlayers.forEach { nearbyPlayer ->
-                nearbyPlayer.sendMessage("§e${player.name} farted! 💨")
+                nearbyPlayer.sendMessage("§e${sender.name} farted! 💨")
             }
             
         } else {
