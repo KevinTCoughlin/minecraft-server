@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 include("plugins:example-plugin")
 include("plugins:blackjack-plugin")
+include("plugins:fart-plugin")

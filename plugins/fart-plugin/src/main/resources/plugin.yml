@@ -1,0 +1,19 @@
+name: FartPlugin
+version: ${version}
+main: com.example.fart.FartPlugin
+api-version: "${apiVersion}"
+description: A plugin that adds a /fart command to play fart sound effects
+author: KevinTCoughlin
+website: https://github.com/KevinTCoughlin/minecraft-server
+
+commands:
+  fart:
+    description: Play a fart sound effect
+    usage: /fart
+    permission: fart.use
+    permission-message: You don't have permission to use this command!
+
+permissions:
+  fart.use:
+    description: Allows the use of the /fart command
+    default: true
