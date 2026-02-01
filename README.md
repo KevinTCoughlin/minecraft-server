@@ -145,6 +145,16 @@ See [docs/litecommands-refactor.md](docs/litecommands-refactor.md) for implement
 #### Example Plugin
 A simple example plugin demonstrating basic Bukkit/Paper API usage.
 
+#### Fart Plugin
+A fun plugin that adds a `/fart` command:
+- Plays a humorous sound effect using Minecraft's built-in sounds
+- Broadcasts to nearby players
+- Available to all players by default
+
+**Commands**: `/fart`
+
+See [plugins/fart-plugin/README.md](plugins/fart-plugin/README.md) for details.
+
 ### Building Plugins
 
 ```bash
@@ -159,6 +169,12 @@ A simple example plugin demonstrating basic Bukkit/Paper API usage.
 
 # Build and copy to server/plugins/
 ./gradlew :plugins:example-plugin:deployToServer
+
+# Build the fart plugin
+./gradlew :plugins:fart-plugin:build
+
+# Build and copy to server/plugins/
+./gradlew :plugins:fart-plugin:deployToServer
 ```
 
 ### Creating a New Plugin
