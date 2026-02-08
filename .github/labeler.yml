@@ -3,64 +3,64 @@
 # Documentation
 documentation:
   - changed-files:
-    - any-glob-to-any-file: ['*.md', 'docs/**']
+      - any-glob-to-any-file: ['*.md', 'docs/**']
 
 # GitHub Actions / CI/CD
 github-actions:
   - changed-files:
-    - any-glob-to-any-file: ['.github/workflows/**', '.github/actions/**']
+      - any-glob-to-any-file: ['.github/workflows/**', '.github/actions/**']
 
 # Configuration
 config:
   - changed-files:
-    - any-glob-to-any-file: ['**/*.yml', '**/*.yaml', '**/*.properties', '**/*.json']
+      - any-glob-to-any-file: ['**/*.yml', '**/*.yaml', '**/*.properties', '**/*.json']
 
 # Dependencies
 dependencies:
   - changed-files:
-    - any-glob-to-any-file: ['**/build.gradle.kts', 'gradle.properties', 'gradle/**']
+      - any-glob-to-any-file: ['**/build.gradle.kts', 'gradle.properties', 'gradle/**']
 
 # Docker
 docker:
   - changed-files:
-    - any-glob-to-any-file: ['**/Dockerfile*', '**/docker-compose*.yml', 'docker/**']
+      - any-glob-to-any-file: ['**/Dockerfile*', '**/docker-compose*.yml', 'docker/**']
 
 # Plugins
 plugins:
   - changed-files:
-    - any-glob-to-any-file: ['plugins/**']
+      - any-glob-to-any-file: ['plugins/**']
 
 # Blackjack Plugin
 blackjack-plugin:
   - changed-files:
-    - any-glob-to-any-file: ['plugins/blackjack-plugin/**']
+      - any-glob-to-any-file: ['plugins/blackjack-plugin/**']
 
 # Example Plugin
 example-plugin:
   - changed-files:
-    - any-glob-to-any-file: ['plugins/example-plugin/**']
+      - any-glob-to-any-file: ['plugins/example-plugin/**']
 
 # Fart Plugin
 fart-plugin:
   - changed-files:
-    - any-glob-to-any-file: ['plugins/fart-plugin/**']
+      - any-glob-to-any-file: ['plugins/fart-plugin/**']
 
 # Scripts
 scripts:
   - changed-files:
-    - any-glob-to-any-file: ['scripts/**', '*.sh']
+      - any-glob-to-any-file: ['scripts/**', '*.sh']
 
 # Server Configuration
 server:
   - changed-files:
-    - any-glob-to-any-file: ['server/**']
+      - any-glob-to-any-file: ['server/**']
 
 # Tests
 tests:
   - changed-files:
-    - any-glob-to-any-file: ['**/test/**', '**/*Test.kt', '**/*Test.java']
+      - any-glob-to-any-file: ['**/test/**', '**/*Test.kt', '**/*Test.java']
 
 # Dev Container
 devcontainer:
   - changed-files:
-    - any-glob-to-any-file: ['.devcontainer/**']
+      - any-glob-to-any-file: ['.devcontainer/**']

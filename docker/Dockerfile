@@ -4,7 +4,6 @@
 # Stage 1: Download and prepare Paper
 FROM eclipse-temurin:21-jre-alpine AS downloader
 
-LABEL maintainer="your-email@example.com"
 LABEL description="Custom PaperMC Minecraft Server - Builder Stage"
 
 # Install utilities for download
@@ -27,8 +26,7 @@ RUN MC_VERSION=${MC_VERSION} /tmp/update-paper.sh && \
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 
-LABEL maintainer="your-email@example.com"
-LABEL description="Custom PaperMC Minecraft Server with Eclipse Temurin"
+LABEL org.opencontainers.image.authors="KevinTCoughlin"
 LABEL org.opencontainers.image.source="https://github.com/KevinTCoughlin/minecraft-server"
 LABEL org.opencontainers.image.description="PaperMC server built on Eclipse Foundation's OpenJDK"
 LABEL org.opencontainers.image.licenses="MIT"
@@ -37,13 +35,14 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN addgroup -g 1000 -S minecraft && \
     adduser -u 1000 -S minecraft -G minecraft
 
-# Install runtime utilities
+# Install runtime utilities (including busybox-extras for nc in healthcheck)
 RUN apk add --no-cache \
     bash \
     curl \
     jq \
     tzdata \
-    tini && \
+    tini \
+    busybox-extras && \
     rm -rf /var/cache/apk/*
 
 # Set timezone

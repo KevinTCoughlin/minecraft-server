@@ -70,7 +70,7 @@ jobs:
       - name: Verify Java installation
         run: |
           java -version
-          echo "Java vendor: $(java -version 2>&1 | grep -i runtime)"
+          echo "Java vendor: $(java -version 2>&1 | grep -i runtime || true)"
 
       - name: Get Paper version info
         id: paper

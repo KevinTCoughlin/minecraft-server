@@ -44,8 +44,16 @@ if ! command -v java &>/dev/null; then
     exit 1
 fi
 
-JAVA_VER=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | cut -d'.' -f1)
+JAVA_VERSION_STR=$(java -version 2>&1 | head -1 | cut -d'"' -f2)
+# Extract leading numeric major version (e.g., "21" from "21.0.1" or "25" from "25-ea")
+JAVA_VER=$(echo "$JAVA_VERSION_STR" | grep -oE '^[0-9]+')
 JAVA_VENDOR=$(java -version 2>&1 | grep -i "runtime" || echo "")
+
+if [[ -z "$JAVA_VER" ]]; then
+    log_error "Unable to determine Java major version from: $JAVA_VERSION_STR"
+    echo "  Please ensure Java 21+ is installed."
+    exit 1
+fi
 
 if [[ "$JAVA_VER" -lt 21 ]]; then
     log_error "Java 21+ required (found Java $JAVA_VER)"

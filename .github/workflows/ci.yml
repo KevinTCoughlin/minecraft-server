@@ -39,15 +39,10 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Build all plugins
-        run: ./gradlew build --no-daemon --scan
+        run: ./gradlew build --no-daemon
 
-      - name: Run tests with coverage
-        run: ./gradlew test jacocoTestReport --no-daemon
-        continue-on-error: true
-
-      - name: Dependency vulnerability check
-        run: ./gradlew dependencyCheckAnalyze --no-daemon || echo "Dependency check completed"
-        continue-on-error: true
+      - name: Run tests
+        run: ./gradlew test --no-daemon
 
       - name: Publish test report
         uses: mikepenz/action-junit-report@v4
@@ -75,12 +70,15 @@ jobs:
           name: coverage-reports
           path: '**/build/reports/jacoco/'
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload plugin JARs
         uses: actions/upload-artifact@v4
         with:
           name: plugin-jars
-          path: '**/build/libs/*[!-slim].jar'
+          path: |
+            **/build/libs/*.jar
+            !**/build/libs/*-slim.jar
           retention-days: 30
 
       - name: Generate build summary
