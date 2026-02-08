@@ -58,7 +58,7 @@ template: |
   3. Restart your server
 
   ---
-  
+
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
-  
+
   Built with Eclipse Temurin OpenJDK 21 ☕
