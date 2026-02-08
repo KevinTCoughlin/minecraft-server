@@ -8,6 +8,7 @@
 # Configuration options here apply to all worlds, unless you specify overrides inside
 # the world-specific config file inside each world folder.
 # 
+# File Reference: https://docs.papermc.io/paper/reference/world-configuration/
 # Docs: https://docs.papermc.io/
 # Discord: https://discord.gg/papermc
 # Website: https://papermc.io/
@@ -297,7 +298,6 @@ misc:
   legacy-ender-pearl-behavior: false
   max-leash-distance: default
   redstone-implementation: VANILLA
-  shield-blocking-delay: 5
   show-sign-click-command-failure-msgs-to-player: false
   update-pathfinding-on-block-update: true
 scoreboards:
