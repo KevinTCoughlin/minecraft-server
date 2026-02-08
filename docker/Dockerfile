@@ -1,30 +1,62 @@
-# Custom PaperMC Dockerfile (optional - for advanced customization)
-# The docker-compose.yml uses itzg/minecraft-server by default,
-# but this Dockerfile can be used for custom builds.
+# Multi-stage Custom PaperMC Dockerfile with security hardening
+# Built on Eclipse Temurin (Eclipse Foundation's OpenJDK)
 
+# Stage 1: Download and prepare Paper
+FROM eclipse-temurin:21-jre-alpine AS downloader
+
+LABEL maintainer="your-email@example.com"
+LABEL description="Custom PaperMC Minecraft Server - Builder Stage"
+
+# Install utilities for download
+RUN apk add --no-cache \
+    bash \
+    curl \
+    jq
+
+WORKDIR /tmp
+
+# Copy download script
+COPY ../scripts/update-paper.sh /tmp/
+RUN chmod +x /tmp/update-paper.sh
+
+# Download Paper
+ARG MC_VERSION=1.21.4
+RUN MC_VERSION=${MC_VERSION} /tmp/update-paper.sh && \
+    mv paper.jar /tmp/paper.jar
+
+# Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 
 LABEL maintainer="your-email@example.com"
-LABEL description="Custom PaperMC Minecraft Server"
+LABEL description="Custom PaperMC Minecraft Server with Eclipse Temurin"
+LABEL org.opencontainers.image.source="https://github.com/KevinTCoughlin/minecraft-server"
+LABEL org.opencontainers.image.description="PaperMC server built on Eclipse Foundation's OpenJDK"
+LABEL org.opencontainers.image.licenses="MIT"
 
-# Create minecraft user
-RUN addgroup -S minecraft && adduser -S minecraft -G minecraft
+# Security: Create non-root user
+RUN addgroup -g 1000 -S minecraft && \
+    adduser -u 1000 -S minecraft -G minecraft
 
-# Install utilities
+# Install runtime utilities
 RUN apk add --no-cache \
     bash \
     curl \
     jq \
-    tzdata
+    tzdata \
+    tini && \
+    rm -rf /var/cache/apk/*
 
 # Set timezone
 ENV TZ=UTC
 
-# Create directories
-RUN mkdir -p /server/plugins && \
+# Create directories with proper permissions
+RUN mkdir -p /server/plugins /server/config /server/logs && \
     chown -R minecraft:minecraft /server
 
 WORKDIR /server
+
+# Copy Paper from downloader stage
+COPY --from=downloader --chown=minecraft:minecraft /tmp/paper.jar /server/paper.jar
 
 # Copy configuration files
 COPY --chown=minecraft:minecraft ../server/server.properties /server/
@@ -33,29 +65,22 @@ COPY --chown=minecraft:minecraft ../server/paper-world-defaults.yml /server/conf
 COPY --chown=minecraft:minecraft ../server/bukkit.yml /server/
 COPY --chown=minecraft:minecraft ../server/spigot.yml /server/
 
-# Copy scripts
-COPY --chown=minecraft:minecraft ../scripts/update-paper.sh /server/
-
-# Download Paper
-RUN chmod +x /server/update-paper.sh && \
-    MC_VERSION=1.21.4 /server/update-paper.sh
-
 # Accept EULA
-RUN echo "eula=true" > /server/eula.txt
+RUN echo "eula=true" > /server/eula.txt && \
+    chown minecraft:minecraft /server/eula.txt
 
+# Switch to non-root user
 USER minecraft
 
 # Expose ports
-EXPOSE 25565/tcp
-EXPOSE 25565/udp
-EXPOSE 25575/tcp
+EXPOSE 25565/tcp 25565/udp 25575/tcp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD nc -z localhost 25565 || exit 1
 
-# JVM arguments - Optimized with Aikar's flags and experimental features
-# See: https://docs.papermc.io/paper/aikars-flags
+# JVM arguments - Optimized with Aikar's flags
+# Using Eclipse Temurin OpenJDK for best performance
 ENV JVM_OPTS="-Xms2G -Xmx4G \
     -XX:+UseG1GC \
     -XX:+ParallelRefProcEnabled \
@@ -78,5 +103,8 @@ ENV JVM_OPTS="-Xms2G -Xmx4G \
     -Dusing.aikars.flags=https://mcflags.emc.gs \
     -Daikars.new.flags=true"
 
+# Use tini for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
+
 # Start server
-ENTRYPOINT ["sh", "-c", "java $JVM_OPTS -jar paper.jar --nogui"]
+CMD ["sh", "-c", "java $JVM_OPTS -jar paper.jar --nogui"]

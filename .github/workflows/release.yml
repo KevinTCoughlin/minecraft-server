@@ -4,61 +4,112 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
-  release:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: 'temurin'  # Eclipse Foundation OpenJDK
+          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build plugins
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build --no-daemon --scan
 
       - name: Run tests
         run: ./gradlew test --no-daemon
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Generate checksums
+        run: |
+          cd plugins/blackjack-plugin/build/libs
+          sha256sum blackjack-plugin-*.jar > checksums.txt
+          cd ../../../../plugins/example-plugin/build/libs
+          sha256sum example-plugin-*.jar >> checksums.txt
+          cd ../../../../plugins/fart-plugin/build/libs
+          sha256sum fart-plugin-*.jar >> checksums.txt
+
+      - name: Generate SBOM
+        run: |
+          ./gradlew cyclonedxBom --no-daemon || echo "SBOM generation skipped (plugin not configured)"
+        continue-on-error: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           generate_release_notes: true
           files: |
             plugins/blackjack-plugin/build/libs/blackjack-plugin-*.jar
             plugins/example-plugin/build/libs/example-plugin-*.jar
+            plugins/fart-plugin/build/libs/fart-plugin-*.jar
+            plugins/**/build/libs/checksums.txt
           body: |
-            ## Blackjack Plugin v${{ steps.version.outputs.VERSION }}
+            ## Minecraft Server Plugins v${{ steps.version.outputs.VERSION }}
+
+            ### Included Plugins
+            - **Blackjack Plugin** - Fully-featured Blackjack minigame
+            - **Example Plugin** - Sample plugin for development reference
+            - **Fart Plugin** - Fun sound effect plugin
 
             ### Installation
-            1. Download `blackjack-plugin-1.0.0.jar` below
-            2. Place it in your server's `plugins/` folder
+            1. Download the desired plugin JAR(s) below
+            2. Place in your server's `plugins/` folder
             3. Restart your server
 
-            ### Commands
+            ### Blackjack Plugin Commands
             - `/bj` or `/bj start` - Start a new game
             - `/bj hit` - Draw another card
             - `/bj stand` - End your turn
             - `/bj stats` - View your statistics
 
-            ### Requirements
-            - PaperMC 1.21.4+
-            - Java 21+
+            ### System Requirements
+            - **PaperMC** 1.21.4 or later
+            - **Java Runtime** 21+ (Eclipse Temurin recommended)
+            - **Server Memory** 2GB minimum, 4GB recommended
+
+            ### Verification
+            Verify downloads using the included `checksums.txt` file:
+            ```bash
+            sha256sum -c checksums.txt
+            ```
+
+            ---
+            Built with Eclipse Temurin OpenJDK 21
