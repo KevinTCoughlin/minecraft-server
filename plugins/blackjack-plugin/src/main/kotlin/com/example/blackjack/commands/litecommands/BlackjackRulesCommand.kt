@@ -14,7 +14,7 @@ import org.bukkit.entity.Player
 /**
  * Handles rules subcommand to display house rules
  */
-@Command(name = "bj rules")
+@Command(name = "deal rules")
 class BlackjackRulesCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     @Execute

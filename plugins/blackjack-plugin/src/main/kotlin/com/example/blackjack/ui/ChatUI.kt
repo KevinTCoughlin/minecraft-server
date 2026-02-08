@@ -109,19 +109,19 @@ object ChatUI {
 
         // Basic actions
         if (session.canHit()) {
-            buttons.add(createButton("[HIT]", GREEN, "/bj hit", "Draw another card"))
+            buttons.add(createButton("[HIT]", GREEN, "/deal hit", "Draw another card"))
         }
-        buttons.add(createButton("[STAND]", RED, "/bj stand", "End your turn"))
+        buttons.add(createButton("[STAND]", RED, "/deal stand", "End your turn"))
 
         // Advanced actions (only show if available)
         if (session.canDoubleDown()) {
-            buttons.add(createButton("[DOUBLE]", GOLD, "/bj double", "Double bet, get one card"))
+            buttons.add(createButton("[DOUBLE]", GOLD, "/deal double", "Double bet, get one card"))
         }
         if (session.canSplit()) {
-            buttons.add(createButton("[SPLIT]", AQUA, "/bj split", "Split pair into two hands"))
+            buttons.add(createButton("[SPLIT]", AQUA, "/deal split", "Split pair into two hands"))
         }
         if (session.canSurrender()) {
-            buttons.add(createButton("[SURRENDER]", GRAY, "/bj surrender", "Forfeit half your bet"))
+            buttons.add(createButton("[SURRENDER]", GRAY, "/deal surrender", "Forfeit half your bet"))
         }
 
         // Join buttons with spacing
@@ -146,9 +146,9 @@ object ChatUI {
             .append(newline())
             .append(newline())
             .append(text("  "))
-            .append(createButton("[YES - Take Insurance]", GREEN, "/bj insurance yes", "Bet on dealer having blackjack (pays 2:1)"))
+            .append(createButton("[YES - Take Insurance]", GREEN, "/deal insurance yes", "Bet on dealer having blackjack (pays 2:1)"))
             .append(text(" "))
-            .append(createButton("[NO - Decline]", RED, "/bj insurance no", "Continue without insurance"))
+            .append(createButton("[NO - Decline]", RED, "/deal insurance no", "Continue without insurance"))
             .append(newline())
             .append(DIVIDER)
     }
@@ -163,7 +163,7 @@ object ChatUI {
             .append(newline())
             .append(DIVIDER)
             .append(newline())
-            .append(createButton("[Play Again]", AQUA, "/bj start", "Start a new game"))
+            .append(createButton("[Play Again]", AQUA, "/deal start", "Start a new game"))
     }
 
     /** Renders results for multiple hands (after split). */
@@ -182,7 +182,7 @@ object ChatUI {
             .append(newline())
             .append(DIVIDER)
             .append(newline())
-            .append(createButton("[Play Again]", AQUA, "/bj start", "Start a new game"))
+            .append(createButton("[Play Again]", AQUA, "/deal start", "Start a new game"))
     }
 
     private fun GameResult.toDisplayInfo(): Pair<String, NamedTextColor> = when (this) {

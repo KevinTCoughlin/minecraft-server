@@ -7,9 +7,10 @@ author: YourName
 website: https://github.com/yourusername/minecraft-server
 
 commands:
-  bj:
+  deal:
     description: Play blackjack
-    usage: /bj [start|hit|stand|stats]
+    usage: /deal [start|hit|stand|stats]
+    aliases: [bj, blackjack]
     permission: blackjack.play
     permission-message: You don't have permission to play blackjack!
 

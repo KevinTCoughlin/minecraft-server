@@ -13,10 +13,10 @@ import net.kyori.adventure.text.format.NamedTextColor.*
 import org.bukkit.entity.Player
 
 /**
- * Base command class for /bj
+ * Base command class for /deal
  * Handles the main command execution when no subcommand is specified
  */
-@Command(name = "bj", aliases = ["blackjack"])
+@Command(name = "deal", aliases = ["bj", "blackjack"])
 @Permission("blackjack.play")
 class BlackjackBaseCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 

@@ -40,7 +40,7 @@ class BlackjackPlugin : JavaPlugin() {
         registerListeners()
 
         logger.info("${pluginMeta.name} v${pluginMeta.version} has been enabled!")
-        logger.info("Use /bj to start playing blackjack!")
+        logger.info("Use /deal to start playing blackjack!")
         logConfigInfo(gameConfig)
     }
 

@@ -13,13 +13,13 @@ import org.bukkit.entity.Player
 /**
  * Handles insurance decision subcommand
  */
-@Command(name = "bj insurance")
+@Command(name = "deal insurance")
 class BlackjackInsuranceCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     @Execute
     fun insurance(@Context player: Player, @Arg decision: String) {
         val session = gameManager[player.uniqueId] ?: run {
-            player.sendError("You don't have an active game! Use /bj to start one.")
+            player.sendError("You don't have an active game! Use /deal to start one.")
             return
         }
 
@@ -38,7 +38,7 @@ class BlackjackInsuranceCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(
                 player.sendMessage(text("Insurance declined.", YELLOW))
             }
             else -> {
-                player.sendError("Usage: /bj insurance yes or /bj insurance no")
+                player.sendError("Usage: /deal insurance yes or /deal insurance no")
                 return
             }
         }
