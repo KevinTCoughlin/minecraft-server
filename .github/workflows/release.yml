@@ -57,12 +57,13 @@ jobs:
 
       - name: Generate checksums
         run: |
+          mkdir -p checksums
           cd plugins/blackjack-plugin/build/libs
-          sha256sum blackjack-plugin-*.jar > checksums.txt
+          sha256sum blackjack-plugin-*.jar > ../../../../checksums/checksums.txt
           cd ../../../../plugins/example-plugin/build/libs
-          sha256sum example-plugin-*.jar >> checksums.txt
+          sha256sum example-plugin-*.jar >> ../../../../checksums/checksums.txt
           cd ../../../../plugins/fart-plugin/build/libs
-          sha256sum fart-plugin-*.jar >> checksums.txt
+          sha256sum fart-plugin-*.jar >> ../../../../checksums/checksums.txt
 
       - name: Generate SBOM
         run: |
@@ -80,7 +81,7 @@ jobs:
             plugins/blackjack-plugin/build/libs/blackjack-plugin-*.jar
             plugins/example-plugin/build/libs/example-plugin-*.jar
             plugins/fart-plugin/build/libs/fart-plugin-*.jar
-            plugins/**/build/libs/checksums.txt
+            checksums/checksums.txt
           body: |
             ## Minecraft Server Plugins v${{ steps.version.outputs.VERSION }}
 

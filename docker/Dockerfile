@@ -15,8 +15,8 @@ RUN apk add --no-cache \
 
 WORKDIR /tmp
 
-# Copy download script
-COPY ../scripts/update-paper.sh /tmp/
+# Copy download script (build context should be repository root)
+COPY scripts/update-paper.sh /tmp/
 RUN chmod +x /tmp/update-paper.sh
 
 # Download Paper
@@ -58,12 +58,12 @@ WORKDIR /server
 # Copy Paper from downloader stage
 COPY --from=downloader --chown=minecraft:minecraft /tmp/paper.jar /server/paper.jar
 
-# Copy configuration files
-COPY --chown=minecraft:minecraft ../server/server.properties /server/
-COPY --chown=minecraft:minecraft ../server/paper-global.yml /server/config/
-COPY --chown=minecraft:minecraft ../server/paper-world-defaults.yml /server/config/
-COPY --chown=minecraft:minecraft ../server/bukkit.yml /server/
-COPY --chown=minecraft:minecraft ../server/spigot.yml /server/
+# Copy configuration files (build context should be repository root)
+COPY --chown=minecraft:minecraft server/server.properties /server/
+COPY --chown=minecraft:minecraft server/paper-global.yml /server/config/
+COPY --chown=minecraft:minecraft server/paper-world-defaults.yml /server/config/
+COPY --chown=minecraft:minecraft server/bukkit.yml /server/
+COPY --chown=minecraft:minecraft server/spigot.yml /server/
 
 # Accept EULA
 RUN echo "eula=true" > /server/eula.txt && \
