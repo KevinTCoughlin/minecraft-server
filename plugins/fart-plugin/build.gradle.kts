@@ -26,9 +26,6 @@ tasks {
     shadowJar {
         archiveClassifier.set("")
         minimize()
-
-        // Relocate Kotlin if bundling (optional - Paper bundles Kotlin)
-        // relocate("kotlin", "com.example.plugin.kotlin")
     }
 
     build {
