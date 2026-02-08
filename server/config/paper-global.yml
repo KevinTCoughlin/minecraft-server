@@ -8,7 +8,6 @@
 # The world configuration options have been moved inside
 # their respective world folder. The files are named paper-world.yml
 # 
-# File Reference: https://docs.papermc.io/paper/reference/global-configuration/
 # Docs: https://docs.papermc.io/
 # Discord: https://discord.gg/papermc
 # Website: https://papermc.io/
@@ -43,6 +42,7 @@ chunk-loading-basic:
   player-max-chunk-load-rate: 100.0
   player-max-chunk-send-rate: 75.0
 chunk-system:
+  gen-parallelism: default
   io-threads: -1
   worker-threads: -1
 collisions:
@@ -85,6 +85,7 @@ misc:
   client-interaction-leniency-distance: default
   compression-level: default
   enable-nether: true
+  fix-entity-position-desync: true
   fix-far-end-terrain-generation: true
   load-permissions-yml-before-plugins: true
   max-joins-per-tick: 5
