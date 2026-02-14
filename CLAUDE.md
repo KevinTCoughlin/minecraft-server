@@ -18,7 +18,7 @@ mc-server-manager stop     # stop server
 - Server root: `server/`
 - Plugins: `server/plugins/`
 - Logs: `server/logs/latest.log`
-- Worlds: `server/world/`, `server/parkour/`, `server/parkour-spiral/`, `server/parkour-spiral-3/`
+- Worlds: `server/world/`, `server/parkour/`, `server/parkour-spiral/`, `server/parkour-spiral-3/`, `server/parkour-volcano/`, `server/parkour-pyramid/`, `server/parkour-paradise/`
 
 ## Installed Plugins
 
@@ -172,16 +172,41 @@ World-specific settings in `server/parkour/paper-world.yml`:
 
 ### Pre-built Parkour Maps
 
-Two maps from [Hielke Maps](https://hielkemaps.com) are imported:
+Maps from [Hielke Maps](https://hielkemaps.com), installed via `scripts/setup-parkour-maps.sh`:
 
 | World | Command | Description |
 |-------|---------|-------------|
 | `parkour-spiral` | `/mv tp parkour-spiral` | Original Parkour Spiral - themed tower climb, great for beginners |
 | `parkour-spiral-3` | `/mv tp parkour-spiral-3` | Parkour Spiral 3 - bigger tower, multiple difficulty ranks, easter eggs |
+| `parkour-volcano` | `/mv tp parkour-volcano` | Escape an active volcano through parkour |
+| `parkour-pyramid` | `/mv tp parkour-pyramid` | One giant pyramid full of parkour |
+| `parkour-paradise` | `/mv tp parkour-paradise` | 100 bite-sized parkour levels |
 
 These maps use their own command block systems for checkpoints/timing — no Parkour plugin setup needed.
 
 To add more maps: download a map zip, extract to `server/<name>/` (no spaces), then `mv import <name> normal`.
+
+### Map Rotation
+
+Maps rotate automatically every 4 hours via `mc-server-manager rotate-parkour` (LaunchAgent). On rotation:
+1. Featured map advances (round-robin through `PARKOUR_MAPS`)
+2. Server broadcasts the new featured map
+3. Players in the previous featured map are teleported to the new one
+
+```bash
+mc-server-manager rotate-parkour   # manual rotation
+mc-server-manager status           # see current featured map
+```
+
+Config in `~/.config/mc-server/config`:
+- `PARKOUR_ROTATION_ENABLED` — enable/disable (default: true)
+- `PARKOUR_MAPS` — space-separated world names to rotate through
+
+### Auto Restart
+
+Server restarts every 6 hours for memory cleanup via `mc-server-manager auto-restart` (LaunchAgent). Uses the standard restart flow with player warnings.
+
+Config: `AUTO_RESTART_INTERVAL` (seconds, default: 21600 = 6h, 0 to disable).
 
 ### Notes
 
