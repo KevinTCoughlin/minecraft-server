@@ -55,6 +55,9 @@ Thumbs.db
 backups/
 *.tar.gz
 
+# WorldEdit runtime
+server/wepif.yml
+
 # Misc
 *.log
 *.tmp
