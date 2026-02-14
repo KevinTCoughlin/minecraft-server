@@ -10,6 +10,9 @@ server/libraries/
 server/world/
 server/world_nether/
 server/world_the_end/
+server/parkour/
+server/parkour-spiral/
+server/parkour-spiral-3/
 
 # Player data
 server/banned-ips.json

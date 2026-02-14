@@ -178,6 +178,8 @@ world-settings:
       cavevines-modifier: 100
       glowberry-modifier: 100
       pitcherplant-modifier: 100
+  worldeditregentempworld:
+    verbose: false
 stats:
   disable-saving: false
   forced-stats: {}
