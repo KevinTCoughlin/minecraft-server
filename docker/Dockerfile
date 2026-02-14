@@ -14,14 +14,18 @@ RUN apk add --no-cache \
 
 WORKDIR /tmp
 
-# Copy download script (build context should be repository root)
-COPY scripts/update-paper.sh /tmp/
-RUN chmod +x /tmp/update-paper.sh
-
-# Download Paper
+# Download Paper directly
 ARG MC_VERSION=1.21.4
-RUN MC_VERSION=${MC_VERSION} /tmp/update-paper.sh && \
-    mv paper.jar /tmp/paper.jar
+RUN API_URL="https://api.papermc.io/v2/projects/paper" && \
+    echo "Fetching PaperMC build for Minecraft ${MC_VERSION}..." && \
+    VERSION_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}") && \
+    LATEST_BUILD=$(echo "$VERSION_INFO" | jq -r '.builds[-1]') && \
+    echo "Latest build: ${LATEST_BUILD}" && \
+    BUILD_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}") && \
+    DOWNLOAD_NAME=$(echo "$BUILD_INFO" | jq -r '.downloads.application.name') && \
+    echo "Downloading ${DOWNLOAD_NAME}..." && \
+    curl -L -o /tmp/paper.jar "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}/downloads/${DOWNLOAD_NAME}" && \
+    echo "Download complete: $(du -h /tmp/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
