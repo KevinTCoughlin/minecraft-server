@@ -33,6 +33,35 @@ mc-server-manager stop     # stop server
 | Fart | 1.0.0 | `/fart` sound effect |
 | DeathBan Pro | 1.0.0-beta | Death ban mechanic |
 
+## Build System
+
+Kotlin + Gradle with version catalog and convention plugin.
+
+### Quick Reference
+
+```bash
+./gradlew build                              # build all plugins
+./gradlew :plugins:blackjack-plugin:test     # run blackjack tests (70 tests)
+./gradlew :plugins:fart-plugin:deployToServer  # build + copy JAR to server/plugins/
+```
+
+### Structure
+
+- `gradle/libs.versions.toml` -- all dependency versions (Kotlin, Paper API, Shadow, LiteCommands, JUnit, kotlinx-serialization, kaml)
+- `buildSrc/src/main/kotlin/paper-plugin.gradle.kts` -- convention plugin applied by all 3 plugins (JVM 21 toolchain, shadow JAR, deployToServer task, plugin.yml template expansion)
+- `gradle.properties` -- project group/version, `minecraftVersion` (used by convention plugin for plugin.yml `apiVersion`)
+
+### Plugin Build Files
+
+Each plugin applies `id("paper-plugin")` and only declares its own dependencies. Blackjack additionally applies `kotlin("plugin.serialization")` and configures relocations + `-parameters` for LiteCommands.
+
+### Key Libraries (blackjack-plugin)
+
+| Library | Purpose |
+|---------|---------|
+| LiteCommands | Annotation-based command framework |
+| kotlinx.serialization + kaml | Type-safe YAML config deserialization |
+
 ## Parkour Setup
 
 ### First-Time Setup (after server start)
