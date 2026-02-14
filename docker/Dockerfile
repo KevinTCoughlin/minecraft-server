@@ -14,17 +14,30 @@ RUN apk add --no-cache \
 
 WORKDIR /tmp
 
-# Download Paper directly
+# Download Paper directly with error handling
 ARG MC_VERSION=1.21.4
-RUN API_URL="https://api.papermc.io/v2/projects/paper" && \
+RUN set -e && \
+    API_URL="https://api.papermc.io/v2/projects/paper" && \
     echo "Fetching PaperMC build for Minecraft ${MC_VERSION}..." && \
-    VERSION_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}") && \
+    VERSION_INFO=$(curl -fsSL "${API_URL}/versions/${MC_VERSION}") && \
     LATEST_BUILD=$(echo "$VERSION_INFO" | jq -r '.builds[-1]') && \
+    if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" = "null" ]; then \
+        echo "Error: Could not find builds for version ${MC_VERSION}"; \
+        exit 1; \
+    fi && \
     echo "Latest build: ${LATEST_BUILD}" && \
-    BUILD_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}") && \
+    BUILD_INFO=$(curl -fsSL "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}") && \
     DOWNLOAD_NAME=$(echo "$BUILD_INFO" | jq -r '.downloads.application.name') && \
+    if [ -z "$DOWNLOAD_NAME" ] || [ "$DOWNLOAD_NAME" = "null" ]; then \
+        echo "Error: Could not determine download filename"; \
+        exit 1; \
+    fi && \
     echo "Downloading ${DOWNLOAD_NAME}..." && \
-    curl -L -o /tmp/paper.jar "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}/downloads/${DOWNLOAD_NAME}" && \
+    curl -fsSL -o /tmp/paper.jar "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}/downloads/${DOWNLOAD_NAME}" && \
+    if [ ! -s /tmp/paper.jar ]; then \
+        echo "Error: Downloaded file is empty"; \
+        exit 1; \
+    fi && \
     echo "Download complete: $(du -h /tmp/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
