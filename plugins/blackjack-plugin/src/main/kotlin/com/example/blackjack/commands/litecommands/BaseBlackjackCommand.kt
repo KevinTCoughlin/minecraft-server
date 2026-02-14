@@ -3,6 +3,8 @@ package com.example.blackjack.commands.litecommands
 import com.example.blackjack.BlackjackPlugin
 import com.example.blackjack.game.GameManager
 import com.example.blackjack.game.GameResult
+import com.example.blackjack.game.GameSession
+import com.example.blackjack.ui.ChatUI
 import net.kyori.adventure.text.Component.text
 import net.kyori.adventure.text.format.NamedTextColor.RED
 import org.bukkit.entity.Player
@@ -35,6 +37,33 @@ abstract class BaseBlackjackCommand(protected val plugin: BlackjackPlugin) {
 
         if (endResult.winStreak > 0) {
             announcements.announceWinStreak(player, endResult.winStreak)
+        }
+    }
+
+    /**
+     * Validates that the player has an active session, is not waiting for insurance,
+     * and it's their turn, then executes the given action.
+     */
+    protected inline fun Player.withValidSession(action: (GameSession) -> Unit) {
+        val session = gameManager[uniqueId] ?: run {
+            sendError("You don't have an active game! Use /deal to start one.")
+            return
+        }
+        if (session.isWaitingForInsurance) {
+            sendError("You must decide on insurance first! Use /deal insurance yes or /deal insurance no")
+            return
+        }
+        if (!session.isPlayerTurn) {
+            sendError("It's not your turn!")
+            return
+        }
+        action(session)
+    }
+
+    protected fun finishAction(player: Player, session: GameSession) {
+        ChatUI.sendGameDisplay(player, session)
+        if (session.isFinished) {
+            gameManager.endGame(player.uniqueId)?.let { handleGameEnd(player, it) }
         }
     }
 

@@ -1,85 +1,46 @@
 plugins {
-    kotlin("jvm")
-    id("com.gradleup.shadow") version "8.3.5"
-}
-
-val paperApiVersion: String by project
-
-repositories {
-    mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://repo.panda-lang.org/releases")
+    id("paper-plugin")
+    kotlin("plugin.serialization")
 }
 
 dependencies {
-    // Paper API
-    compileOnly("io.papermc.paper:paper-api:$paperApiVersion")
+    compileOnly(libs.paper.api)
 
     // Kotlin stdlib - include in JAR for plugin classloader
-    implementation(kotlin("stdlib"))
+    implementation(libs.kotlin.stdlib)
+
+    // kotlinx.serialization + kaml for type-safe YAML config
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kaml)
 
     // LiteCommands - Modern command framework
-    implementation("dev.rollczi:litecommands-bukkit:3.10.9")
-    implementation("dev.rollczi:litecommands-adventure:3.10.9")
+    implementation(libs.litecommands.bukkit)
+    implementation(libs.litecommands.adventure)
 
     // Testing
-    testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.test {
     useJUnitPlatform()
 }
 
-tasks {
-    jar {
-        archiveClassifier.set("slim")
-    }
-
-    shadowJar {
-        archiveClassifier.set("")
-        // Relocate Kotlin to avoid conflicts with other plugins
-        relocate("kotlin", "com.example.blackjack.kotlin")
-        // Relocate LiteCommands to avoid conflicts with other plugins
-        relocate("dev.rollczi.litecommands", "com.example.blackjack.litecommands")
-    }
-
-    build {
-        dependsOn(shadowJar)
-    }
-
-    // Copy built JAR to server plugins folder
-    register<Copy>("deployToServer") {
-        dependsOn(shadowJar)
-        from(shadowJar.get().archiveFile)
-        into(layout.projectDirectory.dir("../../server/plugins"))
-    }
-
-    processResources {
-        val apiVer = paperApiVersion.substringBefore("-")
-        val props = mapOf(
-            "version" to version,
-            "apiVersion" to apiVer
-        )
-        inputs.properties(props)
-        filteringCharset = "UTF-8"
-        filesMatching("plugin.yml") {
-            expand(props)
-        }
-    }
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+tasks.shadowJar {
+    // Relocate Kotlin to avoid conflicts with other plugins
+    relocate("kotlin", "com.example.blackjack.kotlin")
+    // Relocate LiteCommands to avoid conflicts with other plugins
+    relocate("dev.rollczi.litecommands", "com.example.blackjack.litecommands")
+    // Relocate serialization libraries
+    relocate("kotlinx.serialization", "com.example.blackjack.kotlinx.serialization")
+    relocate("com.charleskorn.kaml", "com.example.blackjack.kaml")
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        jvmTarget = "21"
+    compilerOptions {
         // Enable parameter names at runtime for LiteCommands
-        javaParameters = true
+        javaParameters.set(true)
     }
 }
 

@@ -1,15 +1,25 @@
 package com.example.blackjack
 
+import com.charleskorn.kaml.Yaml
+import com.charleskorn.kaml.YamlConfiguration
 import com.example.blackjack.commands.litecommands.*
-import com.example.blackjack.game.DoubleDownRule
 import com.example.blackjack.game.GameConfig
 import com.example.blackjack.game.GameManager
-import com.example.blackjack.game.SurrenderType
 import com.example.blackjack.listeners.PlayerJoinListener
 import dev.rollczi.litecommands.LiteCommands
 import dev.rollczi.litecommands.bukkit.LiteBukkitFactory
+import kotlinx.serialization.Serializable
 import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
+
+/**
+ * Top-level config structure for kaml deserialization.
+ * Only the `gameplay` section is deserialized; other sections are ignored via strictMode = false.
+ */
+@Serializable
+private data class PluginConfig(
+    val gameplay: GameConfig = GameConfig()
+)
 
 /**
  * Main plugin class for the Blackjack minigame.
@@ -45,45 +55,16 @@ class BlackjackPlugin : JavaPlugin() {
     }
 
     private fun loadGameConfig(): GameConfig {
-        val gameplay = config.getConfigurationSection("gameplay") ?: return GameConfig()
+        val configFile = dataFolder.resolve("config.yml")
+        if (!configFile.exists()) return GameConfig()
 
-        return GameConfig(
-            numberOfDecks = gameplay.getInt("decks", 1).coerceIn(1, 8),
-            reshuffleThreshold = gameplay.getDouble("reshuffle-threshold", 0.25).coerceIn(0.1, 0.5),
-            dealerStandsOnSoft17 = gameplay.getBoolean("dealer-stands-on-soft-17", true),
-            dealerPeeks = gameplay.getBoolean("dealer-peeks", true),
-            allowDoubleDown = gameplay.getBoolean("allow-double-down", true),
-            doubleDownOn = parseDoubleDownRule(gameplay.getString("double-down-on", "any")),
-            allowDoubleAfterSplit = gameplay.getBoolean("allow-double-after-split", true),
-            allowSplit = gameplay.getBoolean("allow-split", true),
-            maxSplitHands = gameplay.getInt("max-split-hands", 4).coerceIn(2, 4),
-            allowResplitAces = gameplay.getBoolean("allow-resplit-aces", false),
-            allowHitSplitAces = gameplay.getBoolean("allow-hit-split-aces", false),
-            allowSurrender = gameplay.getBoolean("allow-surrender", true),
-            surrenderType = parseSurrenderType(gameplay.getString("surrender-type", "late")),
-            allowInsurance = gameplay.getBoolean("allow-insurance", true),
-            allowEvenMoney = gameplay.getBoolean("allow-even-money", true),
-            blackjackPayout = gameplay.getDouble("blackjack-payout", 1.5),
-            insurancePayout = gameplay.getDouble("insurance-payout", 2.0),
-            fiveCardCharlie = gameplay.getBoolean("five-card-charlie", false),
-            charlieCardCount = gameplay.getInt("charlie-card-count", 5).coerceIn(5, 7)
-        )
-    }
-
-    private fun parseDoubleDownRule(value: String?): DoubleDownRule {
-        return when (value?.lowercase()) {
-            "9-10-11", "9_10_11", "nine-ten-eleven" -> DoubleDownRule.NINE_TEN_ELEVEN
-            "10-11", "10_11", "ten-eleven" -> DoubleDownRule.TEN_ELEVEN
-            "11", "eleven-only" -> DoubleDownRule.ELEVEN_ONLY
-            else -> DoubleDownRule.ANY_TWO_CARDS
-        }
-    }
-
-    private fun parseSurrenderType(value: String?): SurrenderType {
-        return when (value?.lowercase()) {
-            "early" -> SurrenderType.EARLY
-            "none", "disabled" -> SurrenderType.NONE
-            else -> SurrenderType.LATE
+        return try {
+            val yaml = Yaml(configuration = YamlConfiguration(strictMode = false))
+            val pluginConfig = yaml.decodeFromString(PluginConfig.serializer(), configFile.readText())
+            pluginConfig.gameplay
+        } catch (e: Exception) {
+            logger.warning("Failed to parse config.yml, using defaults: ${e.message}")
+            GameConfig()
         }
     }
 
