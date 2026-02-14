@@ -2,7 +2,7 @@
 # Built on Eclipse Temurin (Eclipse Foundation's OpenJDK)
 
 # Stage 1: Download and prepare Paper
-FROM eclipse-temurin:21-jre-alpine AS downloader
+FROM eclipse-temurin:25-jre-alpine AS downloader
 
 LABEL description="Custom PaperMC Minecraft Server - Builder Stage"
 
@@ -41,7 +41,7 @@ RUN set -e && \
     echo "Download complete: $(du -h /tmp/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 LABEL org.opencontainers.image.authors="KevinTCoughlin"
 LABEL org.opencontainers.image.source="https://github.com/KevinTCoughlin/minecraft-server"
