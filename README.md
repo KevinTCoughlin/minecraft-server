@@ -1,14 +1,30 @@
 # PaperMC Minecraft Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/ci.yml/badge.svg)](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/codeql.yml/badge.svg)](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/codeql.yml)
+[![Docker](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/docker.yml/badge.svg)](https://github.com/KevinTCoughlin/minecraft-server/actions/workflows/docker.yml)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/KevinTCoughlin)](https://github.com/sponsors/KevinTCoughlin)
 
-A config-driven PaperMC server setup with Kotlin/Java plugin development capability, manageable via shell scripts and Docker. **Features experimental JVM optimizations and Minecraft datapacks for enhanced performance and gameplay.**
+A config-driven PaperMC server setup with Kotlin/Java plugin development capability, manageable via shell scripts and Docker. **Built on Eclipse Temurin (Eclipse Foundation's OpenJDK) with experimental JVM optimizations and Minecraft datapacks for enhanced performance and gameplay.**
 
 ## Features
 
-✨ **Experimental Features Enabled**
-- Advanced JVM optimizations with Aikar's flags
+✨ **Modern DevOps**
+- Automated CI/CD with GitHub Actions
+- Security scanning with CodeQL and Trivy
+- Dependency management with Dependabot
+- Docker container builds with SBOM generation
+- Comprehensive test coverage reporting
+
+🚀 **Eclipse Foundation & Microsoft OpenJDK**
+- Built on Eclipse Temurin (Eclipse Foundation's distribution)
+- Java 21 with advanced JVM optimizations
+- Aikar's flags for optimal Minecraft performance
+- Full support for Microsoft-adopted OpenJDK runtimes
+
+⚡ **Experimental Features Enabled**
+- Advanced JVM optimizations with experimental VM options
 - Bundle datapack for improved inventory management
 - See [Experimental Features Guide](docs/experimental-features.md) for details
 

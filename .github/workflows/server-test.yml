@@ -16,19 +16,25 @@ on:
   workflow_dispatch:
     inputs:
       mc_version:
-        description: 'Minecraft version (e.g., 1.21.11 or snapshot)'
+        description: 'Minecraft version (e.g., 1.21.4 or snapshot)'
         required: false
         default: 'latest'
       java_version:
         description: 'Java version (21 or 25)'
         required: false
         default: '21'
+  schedule:
+    # Run weekly on Sundays at 6 AM UTC
+    - cron: '0 6 * * 0'
 
 env:
   PAPER_API: 'https://api.papermc.io/v2'
   SERVER_DIR: server
   STARTUP_TIMEOUT: 120
   SHUTDOWN_TIMEOUT: 30
+
+permissions:
+  contents: read
 
 jobs:
   server-test:
@@ -58,7 +64,13 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java }}
-          distribution: 'temurin'
+          distribution: 'temurin'  # Eclipse Foundation OpenJDK
+          cache: 'gradle'
+
+      - name: Verify Java installation
+        run: |
+          java -version
+          echo "Java vendor: $(java -version 2>&1 | grep -i runtime || true)"
 
       - name: Get Paper version info
         id: paper
