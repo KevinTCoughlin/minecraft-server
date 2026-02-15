@@ -2,7 +2,7 @@
 
 ## Server Overview
 
-PaperMC 1.21.4 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate.
+PaperMC 1.21.11 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate.
 
 ### Management
 
