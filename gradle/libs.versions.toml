@@ -5,7 +5,7 @@ shadow = "8.3.5"
 litecommands = "3.10.9"
 junit = "5.10.2"
 kotlinx-serialization = "1.7.3"
-kaml = "0.67.0"
+kaml = "0.104.0"
 
 [libraries]
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper-api" }
