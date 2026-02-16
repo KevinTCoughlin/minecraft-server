@@ -3,7 +3,7 @@ kotlin = "2.1.0"
 paper-api = "1.21.4-R0.1-SNAPSHOT"
 shadow = "8.3.5"
 litecommands = "3.10.9"
-junit = "5.10.2"
+junit = "6.0.3"
 kotlinx-serialization = "1.7.3"
 kaml = "0.67.0"
 
