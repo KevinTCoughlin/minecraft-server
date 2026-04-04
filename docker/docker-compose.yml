@@ -15,7 +15,7 @@ services:
     environment:
       # Server type
       TYPE: "PAPER"
-      VERSION: "1.21.4"
+      VERSION: "1.21.11"
       EULA: "TRUE"
 
       # Memory settings with experimental JVM features
