@@ -53,7 +53,9 @@
     }
   },
 
-  "postCreateCommand": "bash -c 'echo \"Eclipse Temurin OpenJDK setup complete\" && java -version && ./gradlew build --no-daemon'",
+  "onCreateCommand": "bash -c 'echo \"Eclipse Temurin OpenJDK setup complete\" && java -version && ./gradlew dependencies --no-daemon'",
+  "updateContentCommand": "./gradlew classes --no-daemon",
+  "postCreateCommand": "echo 'Workspace ready!'",
   
   "remoteUser": "vscode",
   
