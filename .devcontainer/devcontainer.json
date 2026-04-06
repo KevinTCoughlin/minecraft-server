@@ -75,7 +75,6 @@
   ],
 
   "containerEnv": {
-    "GRADLE_USER_HOME": "/workspace/.gradle",
     "JAVA_HOME": "/usr/local/sdkman/candidates/java/current"
   },
 
