@@ -9,10 +9,6 @@
       "installGradle": "true",
       "gradleVersion": "8.12"
     },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "dockerComposeVersion": "v2"
-    },
     "ghcr.io/devcontainers/features/github-cli:1": {
       "version": "latest"
     }
@@ -27,7 +23,7 @@
         "streetsidesoftware.code-spell-checker",
         "github.copilot",
         "github.copilot-chat",
-        "ms-azuretools.vscode-docker",
+
         "redhat.vscode-yaml",
         "esbenp.prettier-vscode"
       ],
