@@ -71,7 +71,7 @@ jobs:
         continue-on-error: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
           name: Release v${{ steps.version.outputs.VERSION }}
