@@ -30,6 +30,7 @@ if command -v python3 &> /dev/null; then
     python3 << EOF
 import socket
 import struct
+import sys
 
 def rcon_command(host, port, password, command):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,9 +57,15 @@ def rcon_command(host, port, password, command):
         sock.close()
     return True
 
-rcon_command("$RCON_HOST", $RCON_PORT, "$RCON_PASSWORD", "stop")
+if not rcon_command("$RCON_HOST", $RCON_PORT, "$RCON_PASSWORD", "stop"):
+    sys.exit(1)
 EOF
-    exit 0
+    py_status=$?
+    if [[ $py_status -eq 0 ]]; then
+        log_info "Stop command sent. Server is shutting down..."
+        exit 0
+    fi
+    log_warn "Python RCON attempt failed; trying process-signal fallback..."
 fi
 
 # Final fallback: Direct signal if process can be found
