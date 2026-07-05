@@ -80,25 +80,25 @@ jobs:
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             # Get latest snapshot/experimental version
-            MC_VERSION=$(jq -r '.versions[-1]' <<< "$PROJECT_JSON")
+            MC_VERSION=$(jq -r '.versions[-1]' <<< "$PROJECT_JSON" || true)
           else
-            # Get latest stable version
-            MC_VERSION=$(jq -r '.versions | map(select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last' <<< "$PROJECT_JSON")
+            # Get latest stable version (matches X.Y.Z and X.Y)
+            MC_VERSION=$(jq -r '.versions | map(select(type == "string" and test("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"))) | last' <<< "$PROJECT_JSON" || true)
           fi
 
           if [[ -z "$MC_VERSION" || "$MC_VERSION" == "null" ]]; then
             echo "Failed to resolve a Minecraft version from Paper API response"
-            echo "$PROJECT_JSON" | jq .
+            echo "$PROJECT_JSON" | jq . || echo "$PROJECT_JSON"
             exit 1
           fi
 
           # Get latest build for this version
           VERSION_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}")
-          BUILD=$(jq -r '.builds[-1]' <<< "$VERSION_JSON")
+          BUILD=$(jq -r '.builds[-1]' <<< "$VERSION_JSON" || true)
 
           if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
-            echo "$VERSION_JSON" | jq .
+            echo "$VERSION_JSON" | jq . || echo "$VERSION_JSON"
             exit 1
           fi
 
