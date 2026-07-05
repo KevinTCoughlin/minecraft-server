@@ -28,7 +28,8 @@ on:
     - cron: '0 6 * * 0'
 
 env:
-  PAPER_API: 'https://api.papermc.io/v2'
+  PAPER_API: 'https://api.papermc.io/v3'
+  PAPER_USER_AGENT: 'minecraft-server-smoke-test/1.0 (https://github.com/KevinTCoughlin/minecraft-server)'
   SERVER_DIR: server
   STARTUP_TIMEOUT: 120
   SHUTDOWN_TIMEOUT: 30
@@ -75,16 +76,31 @@ jobs:
       - name: Get Paper version info
         id: paper
         run: |
+          PROJECT_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper")
+
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             # Get latest snapshot/experimental version
-            MC_VERSION=$(curl -s "${PAPER_API}/projects/paper" | jq -r '.versions[-1]')
+            MC_VERSION=$(jq -r '.versions[-1]' <<< "$PROJECT_JSON")
           else
             # Get latest stable version
-            MC_VERSION=$(curl -s "${PAPER_API}/projects/paper" | jq -r '.versions | map(select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last')
+            MC_VERSION=$(jq -r '.versions | map(select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last' <<< "$PROJECT_JSON")
+          fi
+
+          if [[ -z "$MC_VERSION" || "$MC_VERSION" == "null" ]]; then
+            echo "Failed to resolve a Minecraft version from Paper API response"
+            echo "$PROJECT_JSON" | jq .
+            exit 1
           fi
 
           # Get latest build for this version
-          BUILD=$(curl -s "${PAPER_API}/projects/paper/versions/${MC_VERSION}" | jq -r '.builds[-1]')
+          VERSION_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}")
+          BUILD=$(jq -r '.builds[-1]' <<< "$VERSION_JSON")
+
+          if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
+            echo "Failed to resolve a Paper build for version ${MC_VERSION}"
+            echo "$VERSION_JSON" | jq .
+            exit 1
+          fi
 
           echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
@@ -96,9 +112,10 @@ jobs:
           BUILD="${{ steps.paper.outputs.build }}"
 
           mkdir -p $SERVER_DIR
-          curl -o "$SERVER_DIR/paper.jar" \
+          curl -fL --retry 3 --retry-all-errors -H "User-Agent: ${PAPER_USER_AGENT}" -o "$SERVER_DIR/paper.jar" \
             "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar"
 
+          jar tf "$SERVER_DIR/paper.jar" >/dev/null
           echo "Downloaded paper-${MC_VERSION}-${BUILD}.jar"
           ls -la $SERVER_DIR/paper.jar
 
