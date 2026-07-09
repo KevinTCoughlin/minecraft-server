@@ -2,7 +2,7 @@
 kotlin = "2.3.21"
 paper-api = "26.1.2.build.72-stable"
 shadow = "9.5.1"
-litecommands = "3.10.9"
+litecommands = "3.11.0"
 junit = "6.1.1"
 kotlinx-serialization = "1.11.0"
 kaml = "0.104.0"
