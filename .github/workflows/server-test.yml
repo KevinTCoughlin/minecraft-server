@@ -93,12 +93,12 @@ jobs:
           fi
 
           BUILDS_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds")
+          FALLBACK_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
-            BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+            BUILD_JSON="$FALLBACK_BUILD_JSON"
           else
             STABLE_BUILD_JSON=$(jq -cr 'map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
-            FALLBACK_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
             if [[ -n "$STABLE_BUILD_JSON" ]]; then
               BUILD_JSON="$STABLE_BUILD_JSON"
@@ -118,7 +118,7 @@ jobs:
           fi
 
           if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
-            echo "Failed to resolve a Paper build for version ${MC_VERSION}"
+            echo "Failed to resolve download metadata for Paper build ${BUILD}"
             echo "$BUILDS_JSON" | jq .
             exit 1
           fi
