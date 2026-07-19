@@ -78,13 +78,14 @@ jobs:
         id: paper
         run: |
           PROJECT_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper")
+          ALL_VERSIONS=$(jq -r 'if (.versions | type) == "object" then .versions[] | .[] else empty end' <<< "$PROJECT_JSON")
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             # Get latest snapshot/experimental version
-            MC_VERSION=$(jq -r '.versions[-1]' <<< "$PROJECT_JSON")
+            MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | sort -V | tail -1)
           else
             # Get latest stable version
-            MC_VERSION=$(jq -r '.versions | map(select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last' <<< "$PROJECT_JSON")
+            MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | grep -E '^[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
           fi
 
           if [[ -z "$MC_VERSION" || "$MC_VERSION" == "null" ]]; then
