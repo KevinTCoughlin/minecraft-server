@@ -29,6 +29,7 @@ on:
 
 env:
   PAPER_API: 'https://fill.papermc.io/v3'
+  PAPER_API_ORIGIN: 'https://fill.papermc.io'
   PAPER_USER_AGENT: 'minecraft-server-smoke-test/1.0 (https://github.com/KevinTCoughlin/minecraft-server)'
   SERVER_DIR: server
   STARTUP_TIMEOUT: 120
@@ -93,11 +94,18 @@ jobs:
           fi
 
           BUILDS_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds")
+          if ! jq -e 'type == "array" and length > 0' <<< "$BUILDS_JSON" >/dev/null; then
+            echo "Failed to resolve Paper builds for version ${MC_VERSION}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
           FALLBACK_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             BUILD_JSON="$FALLBACK_BUILD_JSON"
           else
+            # Fill v3 marks release builds with the STABLE channel.
             STABLE_BUILD_JSON=$(jq -cr 'map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
             if [[ -n "$STABLE_BUILD_JSON" ]]; then
@@ -124,7 +132,7 @@ jobs:
           fi
 
           if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
-            DOWNLOAD_URL="${PAPER_API%/v3}${DOWNLOAD_URL}"
+            DOWNLOAD_URL="${PAPER_API_ORIGIN}${DOWNLOAD_URL}"
           fi
 
           echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
