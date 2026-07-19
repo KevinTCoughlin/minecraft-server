@@ -97,7 +97,14 @@ jobs:
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
           else
-            BUILD_JSON=$(jq -cr '(map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id)) // (map(select(.downloads["server:default"] != null)) | max_by(.id)) // empty' <<< "$BUILDS_JSON")
+            STABLE_BUILD_JSON=$(jq -cr 'map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+            FALLBACK_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+
+            if [[ -n "$STABLE_BUILD_JSON" ]]; then
+              BUILD_JSON="$STABLE_BUILD_JSON"
+            else
+              BUILD_JSON="$FALLBACK_BUILD_JSON"
+            fi
           fi
 
           BUILD=$(jq -r '.id' <<< "$BUILD_JSON")
@@ -114,6 +121,10 @@ jobs:
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
             echo "$BUILDS_JSON" | jq .
             exit 1
+          fi
+
+          if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
+            DOWNLOAD_URL="${PAPER_API%/v3}${DOWNLOAD_URL}"
           fi
 
           echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
