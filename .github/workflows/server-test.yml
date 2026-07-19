@@ -95,16 +95,22 @@ jobs:
           BUILDS_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds")
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
-            BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | .[0] // empty' <<< "$BUILDS_JSON")
+            BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
           else
-            BUILD_JSON=$(jq -cr '(map(select(.channel == "STABLE" and .downloads["server:default"] != null)) + map(select(.downloads["server:default"] != null))) | .[0] // empty' <<< "$BUILDS_JSON")
+            BUILD_JSON=$(jq -cr '(map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id)) // (map(select(.downloads["server:default"] != null)) | max_by(.id)) // empty' <<< "$BUILDS_JSON")
           fi
 
           BUILD=$(jq -r '.id' <<< "$BUILD_JSON")
           DOWNLOAD_URL=$(jq -r '.downloads["server:default"].url' <<< "$BUILD_JSON")
           DOWNLOAD_NAME=$(jq -r '.downloads["server:default"].name' <<< "$BUILD_JSON")
 
-          if [[ -z "$BUILD" || "$BUILD" == "null" || -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
+          if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
+            echo "Failed to resolve a Paper build for version ${MC_VERSION}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
+          if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
             echo "$BUILDS_JSON" | jq .
             exit 1
