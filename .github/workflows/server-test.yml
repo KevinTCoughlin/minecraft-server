@@ -80,6 +80,12 @@ jobs:
           PROJECT_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper")
           ALL_VERSIONS=$(jq -r 'if (.versions | type) == "object" then .versions[] | .[] else empty end' <<< "$PROJECT_JSON")
 
+          if [[ -z "$ALL_VERSIONS" ]]; then
+            echo "Failed to parse version listings from Paper API response"
+            echo "$PROJECT_JSON" | jq .
+            exit 1
+          fi
+
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             # Get latest snapshot/experimental version
             MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | sort -V | tail -1)
@@ -101,10 +107,10 @@ jobs:
             exit 1
           fi
 
-          FALLBACK_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+          LATEST_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
-            BUILD_JSON="$FALLBACK_BUILD_JSON"
+            BUILD_JSON="$LATEST_BUILD_JSON"
           else
             # Fill v3 marks release builds with the STABLE channel.
             STABLE_BUILD_JSON=$(jq -cr 'map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
@@ -112,7 +118,7 @@ jobs:
             if [[ -n "$STABLE_BUILD_JSON" ]]; then
               BUILD_JSON="$STABLE_BUILD_JSON"
             else
-              BUILD_JSON="$FALLBACK_BUILD_JSON"
+              BUILD_JSON="$LATEST_BUILD_JSON"
             fi
           fi
 
