@@ -28,7 +28,7 @@ on:
     - cron: '0 6 * * 0'
 
 env:
-  PAPER_API: 'https://api.papermc.io/v3'
+  PAPER_API: 'https://fill.papermc.io/v3'
   PAPER_USER_AGENT: 'minecraft-server-smoke-test/1.0 (https://github.com/KevinTCoughlin/minecraft-server)'
   SERVER_DIR: server
   STARTUP_TIMEOUT: 120
@@ -92,31 +92,43 @@ jobs:
             exit 1
           fi
 
-          # Get latest build for this version
-          VERSION_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}")
-          BUILD=$(jq -r '.builds[-1]' <<< "$VERSION_JSON")
+          BUILDS_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds")
 
-          if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
+          if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
+            BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | .[0] // empty' <<< "$BUILDS_JSON")
+          else
+            BUILD_JSON=$(jq -cr '(map(select(.channel == "STABLE" and .downloads["server:default"] != null)) + map(select(.downloads["server:default"] != null))) | .[0] // empty' <<< "$BUILDS_JSON")
+          fi
+
+          BUILD=$(jq -r '.id' <<< "$BUILD_JSON")
+          DOWNLOAD_URL=$(jq -r '.downloads["server:default"].url' <<< "$BUILD_JSON")
+          DOWNLOAD_NAME=$(jq -r '.downloads["server:default"].name' <<< "$BUILD_JSON")
+
+          if [[ -z "$BUILD" || "$BUILD" == "null" || -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
-            echo "$VERSION_JSON" | jq .
+            echo "$BUILDS_JSON" | jq .
             exit 1
           fi
 
           echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
+          echo "download_url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+          echo "download_name=${DOWNLOAD_NAME}" >> $GITHUB_OUTPUT
           echo "Using Paper ${MC_VERSION} build ${BUILD}"
 
       - name: Download Paper
         run: |
           MC_VERSION="${{ steps.paper.outputs.mc_version }}"
           BUILD="${{ steps.paper.outputs.build }}"
+          DOWNLOAD_URL="${{ steps.paper.outputs.download_url }}"
+          DOWNLOAD_NAME="${{ steps.paper.outputs.download_name }}"
 
           mkdir -p $SERVER_DIR
           curl -fL --retry 3 --retry-all-errors -H "User-Agent: ${PAPER_USER_AGENT}" -o "$SERVER_DIR/paper.jar" \
-            "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar"
+            "$DOWNLOAD_URL"
 
           jar tf "$SERVER_DIR/paper.jar" >/dev/null
-          echo "Downloaded paper-${MC_VERSION}-${BUILD}.jar"
+          echo "Downloaded ${DOWNLOAD_NAME}"
           ls -la $SERVER_DIR/paper.jar
 
       - name: Configure server
