@@ -90,12 +90,24 @@ jobs:
             # Get latest snapshot/experimental version
             MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | sort -V | tail -1)
           else
-            # Get latest stable version
-            MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | grep -E '^[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
+            # Keep the stable lane on the repository's tracked production MC version
+            # so a new major Paper line cannot silently raise the Java requirement.
+            if [[ ! -s "${SERVER_DIR}/.paper-version" ]]; then
+              echo "Missing ${SERVER_DIR}/.paper-version for stable smoke test lane"
+              exit 1
+            fi
+            TRACKED_BUILD=$(<"${SERVER_DIR}/.paper-version")
+            MC_VERSION=${TRACKED_BUILD%%-*}
           fi
 
           if [[ -z "$MC_VERSION" || "$MC_VERSION" == "null" ]]; then
             echo "Failed to resolve a Minecraft version from Paper API response"
+            echo "$PROJECT_JSON" | jq .
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$ALL_VERSIONS" | grep -qx "$MC_VERSION"; then
+            echo "Resolved Minecraft version ${MC_VERSION} is not published by Paper"
             echo "$PROJECT_JSON" | jq .
             exit 1
           fi
