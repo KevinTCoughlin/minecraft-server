@@ -109,6 +109,12 @@ jobs:
 
           LATEST_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
 
+          if [[ -z "$FALLBACK_BUILD_JSON" ]]; then
+            echo "No downloadable Paper builds found for version ${MC_VERSION}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             BUILD_JSON="$LATEST_BUILD_JSON"
           else
