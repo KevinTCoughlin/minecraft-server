@@ -28,7 +28,8 @@ on:
     - cron: '0 6 * * 0'
 
 env:
-  PAPER_API: 'https://api.papermc.io/v3'
+  PAPER_API: 'https://fill.papermc.io/v3'
+  PAPER_API_ORIGIN: 'https://fill.papermc.io'
   PAPER_USER_AGENT: 'minecraft-server-smoke-test/1.0 (https://github.com/KevinTCoughlin/minecraft-server)'
   SERVER_DIR: server
   STARTUP_TIMEOUT: 120
@@ -77,13 +78,26 @@ jobs:
         id: paper
         run: |
           PROJECT_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper")
+          ALL_VERSIONS=$(jq -r 'if (.versions | type) == "object" then .versions[] | .[] else empty end' <<< "$PROJECT_JSON")
+
+          if [[ -z "$ALL_VERSIONS" ]]; then
+            echo "Failed to parse version listings from Paper API response"
+            echo "$PROJECT_JSON" | jq .
+            exit 1
+          fi
 
           if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
             # Get latest snapshot/experimental version
-            MC_VERSION=$(jq -r '.versions[-1]' <<< "$PROJECT_JSON")
+            MC_VERSION=$(printf '%s\n' "$ALL_VERSIONS" | sort -V | tail -1)
           else
-            # Get latest stable version
-            MC_VERSION=$(jq -r '.versions | map(select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last' <<< "$PROJECT_JSON")
+            # Keep the stable lane on the repository's tracked production MC version
+            # so a new major Paper line cannot silently raise the Java requirement.
+            if [[ ! -s "${SERVER_DIR}/.paper-version" ]]; then
+              echo "Missing ${SERVER_DIR}/.paper-version for stable smoke test lane"
+              exit 1
+            fi
+            TRACKED_BUILD=$(<"${SERVER_DIR}/.paper-version")
+            MC_VERSION=${TRACKED_BUILD%%-*}
           fi
 
           if [[ -z "$MC_VERSION" || "$MC_VERSION" == "null" ]]; then
@@ -92,31 +106,79 @@ jobs:
             exit 1
           fi
 
-          # Get latest build for this version
-          VERSION_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}")
-          BUILD=$(jq -r '.builds[-1]' <<< "$VERSION_JSON")
+          if ! printf '%s\n' "$ALL_VERSIONS" | grep -qx "$MC_VERSION"; then
+            echo "Resolved Minecraft version ${MC_VERSION} is not published by Paper"
+            echo "$PROJECT_JSON" | jq .
+            exit 1
+          fi
+
+          BUILDS_JSON=$(curl -fsSL -H "User-Agent: ${PAPER_USER_AGENT}" "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds")
+          if ! jq -e 'type == "array" and length > 0' <<< "$BUILDS_JSON" >/dev/null; then
+            echo "Failed to resolve Paper builds for version ${MC_VERSION}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
+          LATEST_BUILD_JSON=$(jq -cr 'map(select(.downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+
+          if [[ -z "$LATEST_BUILD_JSON" ]]; then
+            echo "No downloadable Paper builds found for version ${MC_VERSION}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
+          if [[ "${{ matrix.mc }}" == "snapshot" ]]; then
+            BUILD_JSON="$LATEST_BUILD_JSON"
+          else
+            # Fill v3 marks release builds with the STABLE channel.
+            STABLE_BUILD_JSON=$(jq -cr 'map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id) // empty' <<< "$BUILDS_JSON")
+
+            if [[ -n "$STABLE_BUILD_JSON" ]]; then
+              BUILD_JSON="$STABLE_BUILD_JSON"
+            else
+              BUILD_JSON="$LATEST_BUILD_JSON"
+            fi
+          fi
+
+          BUILD=$(jq -r '.id' <<< "$BUILD_JSON")
+          DOWNLOAD_URL=$(jq -r '.downloads["server:default"].url' <<< "$BUILD_JSON")
+          DOWNLOAD_NAME=$(jq -r '.downloads["server:default"].name' <<< "$BUILD_JSON")
 
           if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
-            echo "$VERSION_JSON" | jq .
+            echo "$BUILDS_JSON" | jq .
             exit 1
+          fi
+
+          if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
+            echo "Failed to resolve download metadata for Paper build ${BUILD}"
+            echo "$BUILDS_JSON" | jq .
+            exit 1
+          fi
+
+          if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
+            DOWNLOAD_URL="${PAPER_API_ORIGIN}${DOWNLOAD_URL}"
           fi
 
           echo "mc_version=${MC_VERSION}" >> $GITHUB_OUTPUT
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
+          echo "download_url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+          echo "download_name=${DOWNLOAD_NAME}" >> $GITHUB_OUTPUT
           echo "Using Paper ${MC_VERSION} build ${BUILD}"
 
       - name: Download Paper
         run: |
           MC_VERSION="${{ steps.paper.outputs.mc_version }}"
           BUILD="${{ steps.paper.outputs.build }}"
+          DOWNLOAD_URL="${{ steps.paper.outputs.download_url }}"
+          DOWNLOAD_NAME="${{ steps.paper.outputs.download_name }}"
 
           mkdir -p $SERVER_DIR
           curl -fL --retry 3 --retry-all-errors -H "User-Agent: ${PAPER_USER_AGENT}" -o "$SERVER_DIR/paper.jar" \
-            "${PAPER_API}/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/paper-${MC_VERSION}-${BUILD}.jar"
+            "$DOWNLOAD_URL"
 
           jar tf "$SERVER_DIR/paper.jar" >/dev/null
-          echo "Downloaded paper-${MC_VERSION}-${BUILD}.jar"
+          echo "Downloaded ${DOWNLOAD_NAME}"
           ls -la $SERVER_DIR/paper.jar
 
       - name: Configure server
