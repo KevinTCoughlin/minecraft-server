@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.4.10"
-paper-api = "26.1.2.build.74-stable"
+paper-api = "26.2.build.84-stable"
 shadow = "9.6.0"
 litecommands = "3.11.0"
 junit = "6.1.2"
