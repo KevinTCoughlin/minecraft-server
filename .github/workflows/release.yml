@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build-and-release:
@@ -25,10 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 25
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin'  # Eclipse Foundation OpenJDK
           cache: 'gradle'
 
@@ -50,25 +49,15 @@ jobs:
           fi
 
       - name: Build plugins
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build --no-daemon -Pversion="${{ steps.version.outputs.VERSION }}"
 
-      - name: Run tests
-        run: ./gradlew test --no-daemon
-
-      - name: Generate checksums
+      - name: Prepare release artifacts
         run: |
-          mkdir -p checksums
-          cd plugins/blackjack-plugin/build/libs
-          sha256sum blackjack-plugin-*.jar > ../../../../checksums/checksums.txt
-          cd ../../../../plugins/example-plugin/build/libs
-          sha256sum example-plugin-*.jar >> ../../../../checksums/checksums.txt
-          cd ../../../../plugins/fart-plugin/build/libs
-          sha256sum fart-plugin-*.jar >> ../../../../checksums/checksums.txt
-
-      - name: Generate SBOM
-        run: |
-          ./gradlew cyclonedxBom --no-daemon || echo "SBOM generation skipped (plugin not configured)"
-        continue-on-error: true
+          mkdir -p release
+          find plugins -path '*/build/libs/*.jar' ! -name '*-slim.jar' \
+            -exec cp {} release/ \;
+          test "$(find release -maxdepth 1 -name '*.jar' | wc -l)" -eq 3
+          (cd release && sha256sum *.jar > checksums.txt)
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -79,10 +68,8 @@ jobs:
           prerelease: ${{ contains(steps.version.outputs.VERSION, 'alpha') || contains(steps.version.outputs.VERSION, 'beta') || contains(steps.version.outputs.VERSION, 'rc') }}
           generate_release_notes: true
           files: |
-            plugins/blackjack-plugin/build/libs/blackjack-plugin-*.jar
-            plugins/example-plugin/build/libs/example-plugin-*.jar
-            plugins/fart-plugin/build/libs/fart-plugin-*.jar
-            checksums/checksums.txt
+            release/*.jar
+            release/checksums.txt
           body: |
             ## Minecraft Server Plugins v${{ steps.version.outputs.VERSION }}
 
@@ -103,7 +90,7 @@ jobs:
             - `/bj stats` - View your statistics
 
             ### System Requirements
-            - **PaperMC** 1.21.4 or later
+            - **PaperMC** 1.21.11
             - **Java Runtime** 21+ (Eclipse Temurin recommended)
             - **Server Memory** 2GB minimum, 4GB recommended
 

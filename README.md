@@ -15,7 +15,7 @@ A config-driven PaperMC server setup with Kotlin/Java plugin development capabil
 - Security scanning with CodeQL and Trivy
 - Dependency management with Dependabot
 - Docker container builds with SBOM generation
-- Comprehensive test coverage reporting
+- Automated unit-test reporting
 
 🚀 **Eclipse Foundation & Microsoft OpenJDK**
 - Built on Eclipse Temurin (Eclipse Foundation's distribution)
@@ -47,6 +47,9 @@ cd minecraft-server
 
 Requires Java 21+ (`brew install openjdk@21`)
 
+The management scripts support the Bash and BSD userland included with macOS;
+`update-paper.sh` uses macOS `shasum` when GNU `sha256sum` is unavailable.
+
 ### Manual Setup
 
 ```bash
@@ -75,7 +78,7 @@ minecraft-server/
 ├── server/                    # Server runtime
 │   ├── paper.jar             # PaperMC JAR (gitignored)
 │   ├── server.properties     # Server configuration
-│   ├── paper-global.yml      # Paper-specific settings
+│   ├── config/               # Paper global and world-default settings
 │   ├── bukkit.yml            # Bukkit configuration
 │   ├── spigot.yml            # Spigot configuration
 │   └── plugins/              # Compiled plugins
@@ -125,12 +128,12 @@ MIN_RAM=2G          # Minimum RAM allocation
 MAX_RAM=4G          # Maximum RAM allocation
 
 # update-paper.sh
-MC_VERSION=1.21.4   # Minecraft version
+MC_VERSION=1.21.11  # Minecraft version (defaults to server/.paper-version)
 
 # stop.sh
 RCON_HOST=localhost
 RCON_PORT=25575
-RCON_PASSWORD=changeme
+RCON_PASSWORD=...   # Optional; RCON is disabled by default
 
 # backup.sh
 BACKUP_DIR=./backups
@@ -238,19 +241,19 @@ class MyPlugin : JavaPlugin() {
 ### Important Files
 
 - **server.properties**: Core Minecraft server settings
-- **paper-global.yml**: PaperMC global configuration
-- **paper-world-defaults.yml**: Default world settings
+- **config/paper-global.yml**: PaperMC global configuration
+- **config/paper-world-defaults.yml**: Default world settings
 - **bukkit.yml**: Bukkit-level settings
 - **spigot.yml**: Spigot performance tuning
 
-### Changing RCON Password
+### Optional RCON (Disabled by Default)
 
-1. Edit `server/server.properties`:
+1. Enable RCON and set a strong unique password in `server/server.properties`:
    ```properties
    rcon.password=your-secure-password
    ```
 
-2. Update scripts or set environment variable:
+2. Restrict port 25575 to trusted hosts and set the script environment variable:
    ```bash
    export RCON_PASSWORD=your-secure-password
    ```
@@ -263,7 +266,7 @@ class MyPlugin : JavaPlugin() {
    ```bash
    DEPLOY_HOST=your-server.com
    DEPLOY_USER=minecraft
-   DEPLOY_PATH=~/minecraft-server
+   DEPLOY_PATH=minecraft-server
    ```
 
 2. Run deploy script:

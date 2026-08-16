@@ -111,6 +111,9 @@ class GameManager(private val config: GameConfig = GameConfig()) {
         return GameEndResult(result, winStreak)
     }
 
+    /** Removes an active game without recording a result. */
+    fun cancelGame(playerId: UUID): Boolean = activeSessions.remove(playerId) != null
+
     /**
      * Gets the statistics for a player, creating them if necessary.
      *

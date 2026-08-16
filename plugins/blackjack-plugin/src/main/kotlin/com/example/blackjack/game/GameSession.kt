@@ -349,8 +349,8 @@ class GameSession(
         return when {
             hand.isBlackjack && dealerHand.isBlackjack -> GameResult.PUSH
             hand.isBlackjack -> GameResult.PLAYER_BLACKJACK
-            dealerHand.isBlackjack -> GameResult.DEALER_WIN
             hand.isBust -> GameResult.PLAYER_BUST
+            dealerHand.isBlackjack -> GameResult.DEALER_WIN
             dealerHand.isBust -> GameResult.DEALER_BUST
             hand.value > dealerHand.value -> GameResult.PLAYER_WIN
             dealerHand.value > hand.value -> GameResult.DEALER_WIN

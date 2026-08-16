@@ -10,9 +10,21 @@ on:
 permissions:
   contents: read
   checks: write
-  pull-requests: write
 
 jobs:
+  script-portability:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Test management scripts
+        run: tests/scripts-portability.sh
+
   build:
     runs-on: ubuntu-latest
 
@@ -22,10 +34,10 @@ jobs:
         with:
           fetch-depth: 0  # Full history for better caching
 
-      - name: Set up JDK 25
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
 
@@ -41,8 +53,10 @@ jobs:
       - name: Build all plugins
         run: ./gradlew build --no-daemon
 
-      - name: Run tests
-        run: ./gradlew test --no-daemon
+      - name: Validate shell scripts
+        run: |
+          bash -n setup.sh scripts/*.sh
+          shellcheck setup.sh scripts/*.sh tests/*.sh
 
       - name: Publish test report
         uses: mikepenz/action-junit-report@v6
@@ -62,15 +76,6 @@ jobs:
             **/build/reports/tests/
             **/build/test-results/
           retention-days: 7
-
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage-reports
-          path: '**/build/reports/jacoco/'
-          retention-days: 7
-          if-no-files-found: ignore
 
       - name: Upload plugin JARs
         uses: actions/upload-artifact@v7

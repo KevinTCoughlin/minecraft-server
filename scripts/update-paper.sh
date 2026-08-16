@@ -3,15 +3,20 @@ set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_DIR="${SCRIPT_DIR}/../server"
+SERVER_DIR="${SERVER_DIR:-${SCRIPT_DIR}/../server}"
 JAR_NAME="paper.jar"
 BACKUP_DIR="${SERVER_DIR}/backups"
 
 # Version options:
-#   - "latest"   : Latest stable release (x.y.z format)
+#   - "latest"   : Latest stable release
 #   - "snapshot" : Latest version (may include snapshots/pre-releases)
 #   - "1.21.11"  : Specific version
-MC_VERSION="${MC_VERSION:-latest}"
+TRACKED_VERSION=""
+if [[ -s "${SERVER_DIR}/.paper-version" ]]; then
+    TRACKED_BUILD=$(<"${SERVER_DIR}/.paper-version")
+    TRACKED_VERSION="${TRACKED_BUILD%-*}"
+fi
+MC_VERSION="${MC_VERSION:-${TRACKED_VERSION:-1.21.11}}"
 
 # Hot swap mode: update JAR while server is running (requires restart)
 HOT_SWAP="${HOT_SWAP:-false}"
@@ -28,7 +33,26 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-API_URL="https://api.papermc.io/v2/projects/paper"
+verify_sha256() {
+    local expected=$1
+    local file=$2
+    local actual
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        log_error "SHA-256 verification requires sha256sum or shasum."
+        return 1
+    fi
+
+    [[ "$actual" == "$expected" ]]
+}
+
+API_URL="https://fill.papermc.io/v3"
+API_ORIGIN="https://fill.papermc.io"
+USER_AGENT="minecraft-server-update/1.0 (https://github.com/KevinTCoughlin/minecraft-server)"
 
 # Parse command line args
 while [[ $# -gt 0 ]]; do
@@ -60,7 +84,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help             Show this help"
             echo ""
             echo "Environment variables:"
-            echo "  MC_VERSION  Version to download (default: latest)"
+            echo "  MC_VERSION  Version to download (default: tracked server version)"
             echo "  HOT_SWAP    Enable hot swap mode (default: false)"
             exit 0
             ;;
@@ -73,51 +97,74 @@ done
 
 # Resolve version aliases
 log_step "Checking available versions..."
-ALL_VERSIONS=$(curl -s "${API_URL}" | jq -r '.versions[]')
+PROJECT_JSON=$(curl -fsSL --retry 3 \
+    -H "User-Agent: ${USER_AGENT}" "${API_URL}/projects/paper")
+ALL_VERSIONS=$(jq -r '.versions[] | .[]' <<< "$PROJECT_JSON")
+
+if [[ -z "$ALL_VERSIONS" ]]; then
+    log_error "Paper API returned no versions"
+    exit 1
+fi
 
 if [[ "$MC_VERSION" == "latest" ]]; then
-    # Get latest stable (x.y.z format only)
-    MC_VERSION=$(echo "$ALL_VERSIONS" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
+    MC_VERSION=$(jq -r '
+        [.versions[] | .[]
+            | select(test("^[0-9]+(\\.[0-9]+){1,2}$"))
+            | {version: ., parts: (split(".") | map(tonumber))}]
+        | sort_by(.parts)
+        | last.version
+    ' <<< "$PROJECT_JSON")
     log_info "Resolved 'latest' to ${MC_VERSION}"
 elif [[ "$MC_VERSION" == "snapshot" ]]; then
-    # Get absolute latest (may include pre-releases)
-    MC_VERSION=$(echo "$ALL_VERSIONS" | tail -1)
+    # Paper returns version families and versions newest-first.
+    MC_VERSION=$(jq -r '[.versions[] | .[]] | first' <<< "$PROJECT_JSON")
     log_info "Resolved 'snapshot' to ${MC_VERSION}"
 fi
 
 log_info "Fetching PaperMC build for Minecraft ${MC_VERSION}..."
 
 # Verify version exists
-VERSIONS=$(echo "$ALL_VERSIONS" | tr '\n' ' ')
-
-if ! echo "$ALL_VERSIONS" | grep -qx "${MC_VERSION}"; then
+if ! grep -qx "${MC_VERSION}" <<< "$ALL_VERSIONS"; then
     log_error "Version ${MC_VERSION} not found. Available versions:"
-    echo "$ALL_VERSIONS" | tail -10
+    tail -10 <<< "$ALL_VERSIONS"
     exit 1
 fi
 
 # Get latest build for this version
 log_step "Finding latest build..."
-VERSION_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}")
-LATEST_BUILD=$(echo "$VERSION_INFO" | jq -r '.builds[-1]')
+BUILDS_JSON=$(curl -fsSL --retry 3 \
+    -H "User-Agent: ${USER_AGENT}" \
+    "${API_URL}/projects/paper/versions/${MC_VERSION}/builds")
+BUILD_INFO=$(jq -cr '
+    . as $builds
+    | ($builds | map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id)) //
+      ($builds | map(select(.downloads["server:default"] != null)) | max_by(.id)) //
+      empty
+' <<< "$BUILDS_JSON")
 
-if [[ -z "$LATEST_BUILD" ]] || [[ "$LATEST_BUILD" == "null" ]]; then
+if [[ -z "$BUILD_INFO" ]]; then
     log_error "Could not find builds for version ${MC_VERSION}"
     exit 1
 fi
 
+LATEST_BUILD=$(jq -r '.id' <<< "$BUILD_INFO")
 log_info "Latest build: ${LATEST_BUILD}"
 
 # Get download info
-BUILD_INFO=$(curl -s "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}")
-DOWNLOAD_NAME=$(echo "$BUILD_INFO" | jq -r '.downloads.application.name')
+DOWNLOAD_NAME=$(jq -r '.downloads["server:default"].name' <<< "$BUILD_INFO")
+DOWNLOAD_URL=$(jq -r '.downloads["server:default"].url' <<< "$BUILD_INFO")
+DOWNLOAD_SHA256=$(jq -r '.downloads["server:default"].checksums.sha256' <<< "$BUILD_INFO")
 
-if [[ -z "$DOWNLOAD_NAME" ]] || [[ "$DOWNLOAD_NAME" == "null" ]]; then
-    log_error "Could not determine download filename"
+if [[ -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ||
+      -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ||
+      -z "$DOWNLOAD_SHA256" || "$DOWNLOAD_SHA256" == "null" ]]; then
+    log_error "Could not determine download metadata"
     exit 1
 fi
 
-DOWNLOAD_URL="${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}/downloads/${DOWNLOAD_NAME}"
+if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
+    DOWNLOAD_URL="${API_ORIGIN}${DOWNLOAD_URL}"
+fi
 
 # Create directories
 mkdir -p "$SERVER_DIR"
@@ -135,19 +182,25 @@ if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" ]]; then
     exit 0
 fi
 
-# Download to temp file first (atomic update)
-TEMP_JAR=$(mktemp)
-log_step "Downloading ${DOWNLOAD_NAME}..."
-if ! curl -L -o "$TEMP_JAR" "$DOWNLOAD_URL"; then
-    log_error "Download failed"
+# Download beside the destination so the final rename is atomic.
+TEMP_JAR="${SERVER_DIR}/.${JAR_NAME}.download.$$"
+cleanup() {
     rm -f "$TEMP_JAR"
+}
+trap cleanup EXIT
+
+log_step "Downloading ${DOWNLOAD_NAME}..."
+if ! curl -fL --retry 3 \
+    -H "User-Agent: ${USER_AGENT}" -o "$TEMP_JAR" "$DOWNLOAD_URL"; then
+    log_error "Download failed"
     exit 1
 fi
 
 # Verify download
-if [[ ! -s "$TEMP_JAR" ]]; then
-    log_error "Downloaded file is empty"
-    rm -f "$TEMP_JAR"
+if [[ ! -s "$TEMP_JAR" ]] ||
+   ! verify_sha256 "$DOWNLOAD_SHA256" "$TEMP_JAR" ||
+   ! jar tf "$TEMP_JAR" >/dev/null; then
+    log_error "Downloaded file failed checksum or JAR validation"
     exit 1
 fi
 
@@ -158,7 +211,15 @@ if [[ -f "$JAR_NAME" ]]; then
     mv "$JAR_NAME" "${BACKUP_DIR}/${BACKUP_NAME}"
 
     # Keep only last 5 backups
-    ls -t "${BACKUP_DIR}"/paper-*.jar 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+    OLD_BACKUPS=()
+    # Backup names are generated by this script and cannot contain whitespace.
+    # shellcheck disable=SC2012
+    while IFS= read -r backup; do
+        [[ -n "$backup" ]] && OLD_BACKUPS+=("$backup")
+    done < <(ls -1t "$BACKUP_DIR"/paper-*.jar 2>/dev/null || true)
+    for ((i = 5; i < ${#OLD_BACKUPS[@]}; i++)); do
+        rm -f -- "${OLD_BACKUPS[$i]}"
+    done
 fi
 
 # Atomic move (hot swap safe)
@@ -173,6 +234,7 @@ fi
 
 # Record version
 echo "${MC_VERSION}-${LATEST_BUILD}" > .paper-version
+trap - EXIT
 
 SIZE=$(du -h "$JAR_NAME" | cut -f1)
 log_info "Successfully downloaded PaperMC ${MC_VERSION} build ${LATEST_BUILD} (${SIZE})"

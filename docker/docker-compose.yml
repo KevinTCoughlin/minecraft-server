@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   minecraft:
     image: itzg/minecraft-server:java21
@@ -10,7 +8,7 @@ services:
 
     ports:
       - "25565:25565"     # Minecraft
-      - "25575:25575"     # RCON
+      - "19132:19132/udp" # Bedrock/Geyser
 
     environment:
       # Server type
@@ -55,14 +53,9 @@ services:
       # Experimental features
       INITIAL_ENABLED_PACKS: "vanilla,bundle"
 
-      # RCON
-      ENABLE_RCON: "true"
-      RCON_PASSWORD: "changeme"
-      RCON_PORT: 25575
-
       # Misc
       ENABLE_COMMAND_BLOCK: "false"
-      ALLOW_FLIGHT: "false"
+      ALLOW_FLIGHT: "true"
       PVP: "true"
 
       # Timezone
@@ -78,8 +71,8 @@ services:
 
       # Mount configuration files (optional - for customization)
       - ../server/server.properties:/data/server.properties:ro
-      - ../server/paper-global.yml:/data/config/paper-global.yml:ro
-      - ../server/paper-world-defaults.yml:/data/config/paper-world-defaults.yml:ro
+      - ../server/config/paper-global.yml:/data/config/paper-global.yml:ro
+      - ../server/config/paper-world-defaults.yml:/data/config/paper-world-defaults.yml:ro
       - ../server/bukkit.yml:/data/bukkit.yml:ro
       - ../server/spigot.yml:/data/spigot.yml:ro
 
@@ -130,7 +123,6 @@ volumes:
 #       BACKUP_INTERVAL: "24h"
 #       RCON_HOST: minecraft
 #       RCON_PORT: 25575
-#       RCON_PASSWORD: changeme
 #     volumes:
 #       - minecraft-data:/data:ro
 #       - ./backups:/backups

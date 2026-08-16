@@ -15,7 +15,7 @@ The easiest way to run the server:
 
 ```bash
 cd docker
-docker-compose up -d
+docker compose up -d
 ```
 
 This uses the popular [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server) image with our configuration.
@@ -42,7 +42,7 @@ docker run -d -p 25565:25565 -v minecraft-data:/server minecraft-server:latest
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: `MEMORY` environment variable (default: 4G)
-- **Version**: `VERSION` environment variable (default: 1.21.4)
+- **Version**: `VERSION` environment variable (default: 1.21.11)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
 
@@ -50,20 +50,20 @@ Edit `docker-compose.yml` to customize:
 
 The custom Dockerfile:
 
-1. **Downloads Paper** - Uses the update-paper.sh script
+1. **Downloads Paper** - Resolves the latest stable build from Paper's Fill v3 API
 2. **Multi-stage build** - Smaller final image
 3. **Security hardened** - Non-root user, minimal base image
 4. **Eclipse Temurin** - Uses Eclipse Foundation's OpenJDK
 
 Build arguments:
 
-- `MC_VERSION` - Minecraft version to download (default: 1.21.4)
+- `MC_VERSION` - Minecraft version to download (default: 1.21.11)
 
 Example:
 
 ```bash
-docker build -f docker/Dockerfile -t minecraft-server:1.21.4 \
-  --build-arg MC_VERSION=1.21.4 .
+docker build -f docker/Dockerfile -t minecraft-server:1.21.11 \
+  --build-arg MC_VERSION=1.21.11 .
 ```
 
 ## Eclipse Temurin
@@ -103,7 +103,9 @@ docker run -d \
 Default ports:
 
 - **25565** - Minecraft server (TCP/UDP)
-- **25575** - RCON (TCP)
+- **19132** - Bedrock/Geyser (UDP)
+
+RCON is disabled and not published by default.
 
 ## Health Checks
 
@@ -115,20 +117,20 @@ Both configurations include health checks that verify the server is accepting co
 
 ```bash
 # Start
-docker-compose up -d
+docker compose up -d
 
 # Stop
-docker-compose down
+docker compose down
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Restart
-docker-compose restart
+docker compose restart
 
 # Update image
-docker-compose pull
-docker-compose up -d
+docker compose pull
+docker compose up -d
 ```
 
 ### Custom Image
@@ -160,7 +162,7 @@ For production:
 
 ### Container won't start
 
-1. Check logs: `docker-compose logs`
+1. Check logs: `docker compose logs`
 2. Verify port availability: `lsof -i :25565`
 3. Check resource limits
 

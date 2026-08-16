@@ -41,7 +41,7 @@ Kotlin + Gradle with version catalog and convention plugin.
 
 ```bash
 ./gradlew build                              # build all plugins
-./gradlew :plugins:blackjack-plugin:test     # run blackjack tests (70 tests)
+./gradlew :plugins:blackjack-plugin:test     # run blackjack tests (71 tests)
 ./gradlew :plugins:fart-plugin:deployToServer  # build + copy JAR to server/plugins/
 ```
 

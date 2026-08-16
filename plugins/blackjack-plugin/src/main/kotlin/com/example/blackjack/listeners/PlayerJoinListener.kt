@@ -6,6 +6,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.player.PlayerQuitEvent
 
 /**
  * Sends a welcome message to players when they join.
@@ -31,5 +32,10 @@ class PlayerJoinListener(private val plugin: BlackjackPlugin) : Listener {
                 player.sendMessage(Component.empty())
             }
         }, delay)
+    }
+
+    @EventHandler
+    fun onPlayerQuit(event: PlayerQuitEvent) {
+        plugin.gameManager.cancelGame(event.player.uniqueId)
     }
 }

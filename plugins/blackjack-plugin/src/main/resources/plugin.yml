@@ -3,8 +3,8 @@ version: ${version}
 main: com.example.blackjack.BlackjackPlugin
 api-version: "${apiVersion}"
 description: Play blackjack against a dealer in Minecraft chat
-author: YourName
-website: https://github.com/yourusername/minecraft-server
+author: KevinTCoughlin
+website: https://github.com/KevinTCoughlin/minecraft-server
 
 commands:
   deal:
