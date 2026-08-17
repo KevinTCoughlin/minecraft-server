@@ -5,7 +5,7 @@ plugins {
 
 kotlin {
     jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(25))
+        languageVersion.set(JavaLanguageVersion.of(21))
         vendor.set(JvmVendorSpec.ADOPTIUM)
     }
 }
@@ -17,6 +17,7 @@ tasks {
 
     shadowJar {
         archiveClassifier.set("")
+        duplicatesStrategy = DuplicatesStrategy.WARN
         minimize()
     }
 

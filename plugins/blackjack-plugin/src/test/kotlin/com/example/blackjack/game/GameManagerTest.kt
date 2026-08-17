@@ -57,6 +57,18 @@ class GameManagerTest {
     }
 
     @Test
+    fun `cancelling game removes session without recording stats`() {
+        val manager = GameManager()
+        val playerId = UUID.randomUUID()
+        manager.startGame(playerId)
+
+        assertTrue(manager.cancelGame(playerId))
+        assertFalse(manager.hasActiveGame(playerId))
+        assertEquals(0, manager.getStats(playerId).gamesPlayed)
+        assertFalse(manager.cancelGame(playerId))
+    }
+
+    @Test
     fun `stats are tracked per player`() {
         val manager = GameManager()
         val player1 = UUID.randomUUID()

@@ -23,7 +23,7 @@ Steps to reproduce the behavior:
 <!-- What actually happened -->
 
 ## Environment
-- **Server Version**: <!-- e.g., PaperMC 1.21.4 build 123 -->
+- **Server Version**: <!-- e.g., PaperMC 1.21.11 build 69 -->
 - **Java Version**: <!-- Output of `java -version` -->
 - **Plugin Version**: <!-- e.g., 1.0.0 -->
 - **Operating System**: <!-- e.g., Ubuntu 22.04, Windows 11 -->

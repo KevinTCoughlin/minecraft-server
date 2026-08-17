@@ -47,7 +47,7 @@ template: |
 
   ## System Requirements
 
-  - **PaperMC** 1.21.4 or later
+  - **PaperMC** 1.21.11
   - **Java Runtime** 21+ (Eclipse Temurin recommended)
   - **Server Memory** 2GB minimum, 4GB recommended
 

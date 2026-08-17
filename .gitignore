@@ -23,6 +23,7 @@ server/whitelist.json
 
 # Session and crash data
 server/session.lock
+server/server.pid
 server/crash-reports/
 
 # Plugin data (except source)

@@ -143,6 +143,7 @@ jobs:
           BUILD=$(jq -r '.id' <<< "$BUILD_JSON")
           DOWNLOAD_URL=$(jq -r '.downloads["server:default"].url' <<< "$BUILD_JSON")
           DOWNLOAD_NAME=$(jq -r '.downloads["server:default"].name' <<< "$BUILD_JSON")
+          DOWNLOAD_SHA256=$(jq -r '.downloads["server:default"].checksums.sha256' <<< "$BUILD_JSON")
 
           if [[ -z "$BUILD" || "$BUILD" == "null" ]]; then
             echo "Failed to resolve a Paper build for version ${MC_VERSION}"
@@ -150,7 +151,9 @@ jobs:
             exit 1
           fi
 
-          if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ]]; then
+          if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ||
+                -z "$DOWNLOAD_NAME" || "$DOWNLOAD_NAME" == "null" ||
+                -z "$DOWNLOAD_SHA256" || "$DOWNLOAD_SHA256" == "null" ]]; then
             echo "Failed to resolve download metadata for Paper build ${BUILD}"
             echo "$BUILDS_JSON" | jq .
             exit 1
@@ -164,6 +167,7 @@ jobs:
           echo "build=${BUILD}" >> $GITHUB_OUTPUT
           echo "download_url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
           echo "download_name=${DOWNLOAD_NAME}" >> $GITHUB_OUTPUT
+          echo "download_sha256=${DOWNLOAD_SHA256}" >> $GITHUB_OUTPUT
           echo "Using Paper ${MC_VERSION} build ${BUILD}"
 
       - name: Download Paper
@@ -172,11 +176,13 @@ jobs:
           BUILD="${{ steps.paper.outputs.build }}"
           DOWNLOAD_URL="${{ steps.paper.outputs.download_url }}"
           DOWNLOAD_NAME="${{ steps.paper.outputs.download_name }}"
+          DOWNLOAD_SHA256="${{ steps.paper.outputs.download_sha256 }}"
 
           mkdir -p $SERVER_DIR
           curl -fL --retry 3 --retry-all-errors -H "User-Agent: ${PAPER_USER_AGENT}" -o "$SERVER_DIR/paper.jar" \
             "$DOWNLOAD_URL"
 
+          printf '%s  %s\n' "$DOWNLOAD_SHA256" "$SERVER_DIR/paper.jar" | sha256sum -c -
           jar tf "$SERVER_DIR/paper.jar" >/dev/null
           echo "Downloaded ${DOWNLOAD_NAME}"
           ls -la $SERVER_DIR/paper.jar

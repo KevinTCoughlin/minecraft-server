@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="${SCRIPT_DIR}/../server"
 JAR_NAME="paper.jar"
+PID_FILE="${SERVER_DIR}/server.pid"
 MIN_RAM="${MIN_RAM:-4G}"
 MAX_RAM="${MAX_RAM:-4G}"
 GC_TYPE="${GC_TYPE:-g1gc}"  # g1gc or zgc
@@ -20,6 +21,15 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 cd "$SERVER_DIR"
+
+if [[ -s "$PID_FILE" ]]; then
+    EXISTING_PID=$(<"$PID_FILE")
+    if [[ "$EXISTING_PID" =~ ^[0-9]+$ ]] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+        log_error "Server is already running with PID ${EXISTING_PID}."
+        exit 1
+    fi
+    rm -f "$PID_FILE"
+fi
 
 # Check if paper.jar exists
 if [[ ! -f "$JAR_NAME" ]]; then
@@ -97,4 +107,5 @@ else
     )
 fi
 
+echo "$$" > "$PID_FILE"
 exec "$JAVA_CMD" "${JVM_FLAGS[@]}" -jar "$JAR_NAME" --nogui

@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="${SCRIPT_DIR}/../server"
 RCON_HOST="${RCON_HOST:-localhost}"
 RCON_PORT="${RCON_PORT:-25575}"
-RCON_PASSWORD="${RCON_PASSWORD:-changeme}"
+RCON_PASSWORD="${RCON_PASSWORD:-}"
 DRY_RUN="${1:-}"
 
 # =============================================================================
@@ -39,22 +39,13 @@ MAP_URLS=(
     "https://hielkemaps.com/downloads/Parkour Paradise.zip"
 )
 
-# Display names for the zip's inner folder (what Hielke zips contain)
-MAP_ZIP_FOLDERS=(
-    "Parkour Spiral"
-    "Parkour Spiral 3"
-    "Parkour Volcano"
-    "Parkour Pyramid"
-    "Parkour Paradise"
-)
-
 # =============================================================================
 # Helpers
 # =============================================================================
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 rcon_cmd() {
-    if command -v mcrcon &>/dev/null; then
+    if [[ -n "$RCON_PASSWORD" ]] && command -v mcrcon &>/dev/null; then
         mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "$1" 2>/dev/null || true
     else
         log "WARN: mcrcon not found, skipping RCON command: $1"
@@ -92,7 +83,6 @@ main() {
     for i in "${!MAP_NAMES[@]}"; do
         local name="${MAP_NAMES[$i]}"
         local url="${MAP_URLS[$i]}"
-        local zip_folder="${MAP_ZIP_FOLDERS[$i]}"
         local dest="$SERVER_DIR/$name"
 
         if [[ -d "$dest" ]]; then
@@ -109,9 +99,10 @@ main() {
         log "INSTALLING: $name"
 
         # Download to temp directory
-        local tmp_dir
-        tmp_dir="$(mktemp -d)"
-        trap "rm -rf '$tmp_dir'" EXIT
+        local tmp_dir="$SERVER_DIR/.map-install-${name}-$$"
+        rm -rf "$tmp_dir"
+        mkdir -p "$tmp_dir"
+        trap 'rm -rf "$tmp_dir"' EXIT
 
         log "  Downloading from $url..."
         if ! curl -fSL -o "$tmp_dir/map.zip" "$url"; then

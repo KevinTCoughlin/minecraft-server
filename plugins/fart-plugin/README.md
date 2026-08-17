@@ -46,7 +46,7 @@ Simply type `/fart` in chat, and you'll hear a funny sound effect! Nearby player
 - Uses Minecraft's ENTITY_RAVAGER_STUNNED sound with a low pitch (0.5) to create a fart-like sound
 - Volume is set to 1.0 (normal)
 - Nearby player detection radius: 20 blocks in all directions
-- Built with Kotlin and PaperMC API 1.21.4
+- Built with Kotlin and PaperMC API 1.21.11
 
 ## Credits
 

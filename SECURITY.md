@@ -57,7 +57,6 @@ This project implements several security measures:
 ### Build Security
 
 - **Gradle Wrapper Validation**: Ensures integrity of build scripts
-- **Dependency Verification**: Checks for known vulnerabilities
 - **Eclipse Temurin**: Uses trusted OpenJDK distribution
 - **Multi-stage Docker Builds**: Minimizes attack surface
 
@@ -65,7 +64,7 @@ This project implements several security measures:
 
 - **Non-root Containers**: Docker images run as unprivileged user
 - **Minimal Base Images**: Alpine Linux for smaller attack surface
-- **RCON Password Protection**: Secure remote administration
+- **RCON Disabled by Default**: Remote administration must be explicitly enabled
 - **Network Isolation**: Proper Docker network configuration
 
 ## Security Best Practices
@@ -74,9 +73,9 @@ When using this project, we recommend:
 
 ### Server Configuration
 
-1. **Change Default Passwords**
-   - Update RCON password in `server.properties`
-   - Use strong, unique passwords
+1. **Protect Administrative Interfaces**
+   - Keep RCON disabled unless it is required
+   - If enabled, use a strong unique password and firewall port 25575
 
 2. **Enable Whitelist**
    - Use whitelist mode for private servers

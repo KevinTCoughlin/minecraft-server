@@ -222,11 +222,14 @@ object ChatUI {
         value: Int,
         valueColor: NamedTextColor,
         suffix: String = ""
-    ): Component = this
-        .append(text("  $label: ", WHITE))
-        .append(text("$value", valueColor))
-        .apply { if (suffix.isNotEmpty()) append(text(suffix, GRAY)) }
-        .append(newline())
+    ): Component {
+        var component = append(text("  $label: ", WHITE))
+            .append(text("$value", valueColor))
+        if (suffix.isNotEmpty()) {
+            component = component.append(text(suffix, GRAY))
+        }
+        return component.append(newline())
+    }
 
     private fun createButton(
         label: String,

@@ -16,11 +16,11 @@ class ExamplePlugin : JavaPlugin() {
         server.pluginManager.registerEvents(PlayerJoinListener(this), this)
         server.pluginManager.registerEvents(BlockBreakListener(this), this)
 
-        logger.info("${description.name} v${description.version} has been enabled!")
+        logger.info("${pluginMeta.name} v${pluginMeta.version} has been enabled!")
         logger.info("Welcome message: ${config.getString("welcome-message") ?: "not set"}")
     }
 
     override fun onDisable() {
-        logger.info("${description.name} has been disabled!")
+        logger.info("${pluginMeta.name} has been disabled!")
     }
 }

@@ -3,8 +3,8 @@ version: ${version}
 main: com.example.plugin.ExamplePlugin
 api-version: "${apiVersion}"
 description: An example Kotlin plugin for PaperMC
-author: YourName
-website: https://github.com/yourusername/minecraft-server
+author: KevinTCoughlin
+website: https://github.com/KevinTCoughlin/minecraft-server
 
 commands:
   hello:
