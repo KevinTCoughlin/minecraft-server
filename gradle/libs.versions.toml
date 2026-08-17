@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.4.10"
 paper-api = "1.21.11-R0.1-SNAPSHOT"
-shadow = "9.6.0"
+shadow = "9.6.1"
 litecommands = "3.11.0"
 junit = "6.1.2"
 kotlinx-serialization = "1.11.0"
