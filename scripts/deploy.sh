@@ -90,7 +90,7 @@ shopt -u nullglob
 # Create remote directory
 log_step "Ensuring remote directory exists..."
 printf -v REMOTE_PATH '%q' "$DEPLOY_PATH"
-ssh -p "$DEPLOY_PORT" "$DEPLOY_TARGET" "mkdir -p ${REMOTE_PATH}/server/plugins ${REMOTE_PATH}/scripts ${REMOTE_PATH}/docker"
+ssh -p "$DEPLOY_PORT" "$DEPLOY_TARGET" "mkdir -p -- ${REMOTE_PATH}/server/plugins ${REMOTE_PATH}/scripts ${REMOTE_PATH}/docker"
 
 # Sync only tracked configuration and built plugin JARs. Runtime worlds and player
 # data are intentionally never deployment inputs.
@@ -120,7 +120,7 @@ rsync "${RSYNC_ARGS[@]}" --delete \
 
 # Make scripts executable
 log_step "Setting permissions..."
-ssh -p "$DEPLOY_PORT" "$DEPLOY_TARGET" "chmod +x ${REMOTE_PATH}/scripts/*.sh"
+ssh -p "$DEPLOY_PORT" "$DEPLOY_TARGET" "chmod +x -- ${REMOTE_PATH}/scripts/*.sh"
 
 log_info "Deployment complete!"
 echo ""
