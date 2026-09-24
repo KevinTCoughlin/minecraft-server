@@ -17,7 +17,10 @@ class GameSessionTest {
     fun `new session deals 4 cards total`() {
         val session = createSession()
         assertEquals(2, session.playerHand.size)
-        assertEquals(2, session.dealerHand.size)
+        // A player Blackjack plays the dealer out at deal time, drawing past two cards
+        if (!session.playerHand.isBlackjack) {
+            assertEquals(2, session.dealerHand.size)
+        }
     }
 
     @Test
@@ -125,8 +128,9 @@ class GameSessionTest {
         val config = GameConfig(numberOfDecks = 6)
         val session = createSession(config)
 
-        // 6 decks = 312 cards, minus 4 dealt
-        assertEquals(308, session.deck.remaining)
+        // 6 decks = 312 cards, minus those dealt (more than 4 if a player Blackjack played the dealer out)
+        val dealt = session.playerHand.size + session.dealerHand.size
+        assertEquals(312 - dealt, session.deck.remaining)
     }
 
     @Test
