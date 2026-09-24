@@ -21,6 +21,11 @@ updates:
     labels:
       - "dependencies"
       - "gradle"
+    ignore:
+      # CodeQL's Kotlin extractor rejects 2.4.20 ("supports versions below
+      # 2.4.20"), failing the java-kotlin analysis. Drop once CodeQL catches up.
+      - dependency-name: "org.jetbrains.kotlin*"
+        versions: ["2.4.20"]
     groups:
       kotlin:
         patterns:
