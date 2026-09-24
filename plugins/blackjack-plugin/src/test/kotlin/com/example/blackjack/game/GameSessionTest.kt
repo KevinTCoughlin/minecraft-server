@@ -95,7 +95,8 @@ class GameSessionTest {
 
     @Test
     fun `game state tracking`() {
-        val config = GameConfig(allowInsurance = false)
+        // With dealerPeeks on, a dealer Blackjack under an Ace/10 up card ends the game at deal time
+        val config = GameConfig(allowInsurance = false, dealerPeeks = false)
         val session = createSession(config)
 
         // Should start in player turn (unless blackjack)
