@@ -201,7 +201,7 @@ class GameSession(
             return true
         }
 
-        if (config.fiveCardCharlie && playerHand.size >= config.charlieCardCount && !playerHand.isBust) {
+        if (isCharlie(playerHand)) {
             advanceToNextHandOrDealer()
             return true
         }
@@ -303,9 +303,9 @@ class GameSession(
     private fun playDealerTurn() {
         state = GameState.DEALER_TURN
 
-        // A natural Blackjack is settled by the dealer's first two cards alone, so
-        // the dealer only draws when some hand still depends on the final total.
-        val noHandDependsOnDealer = playerHands.all { it.isBust || it.hasSurrendered || it.isBlackjack }
+        // A natural is settled by the dealer's first two cards and a Charlie wins
+        // outright, so the dealer only draws when some hand depends on the final total.
+        val noHandDependsOnDealer = playerHands.all { it.isBust || it.hasSurrendered || it.isBlackjack || isCharlie(it) }
         if (noHandDependsOnDealer) {
             state = GameState.FINISHED
             determineAllResults()
@@ -333,6 +333,9 @@ class GameSession(
         }
     }
 
+    private fun isCharlie(hand: Hand): Boolean =
+        config.fiveCardCharlie && hand.size >= config.charlieCardCount && !hand.isBust
+
     private fun determineAllResults() {
         handResults.clear()
         for (hand in playerHands) {
@@ -345,7 +348,7 @@ class GameSession(
     private fun determineHandResult(hand: Hand): GameResult {
         if (hand.hasSurrendered) return GameResult.SURRENDERED
 
-        if (config.fiveCardCharlie && hand.size >= config.charlieCardCount && !hand.isBust) {
+        if (isCharlie(hand)) {
             return GameResult.PLAYER_WIN
         }
 

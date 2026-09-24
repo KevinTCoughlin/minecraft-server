@@ -201,6 +201,24 @@ class GameSessionTest {
     }
 
     @Test
+    fun `dealer does not draw against a five-card charlie`() {
+        // Player 2-3 hits 2, 3, 4 for a 14-point Charlie; dealer 6 (hole) + 5 (up) would normally hit
+        val deck = riggedDeck(
+            card(Rank.TWO), Card(Rank.SIX, Suit.HEARTS), card(Rank.THREE), Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.TWO, Suit.HEARTS), Card(Rank.THREE, Suit.HEARTS), card(Rank.FOUR)
+        )
+        val session = GameSession(UUID.randomUUID(), GameConfig(fiveCardCharlie = true, charlieCardCount = 5), deck)
+
+        repeat(3) { session.hit() }
+
+        assertTrue(session.isFinished)
+        assertEquals(5, session.playerHand.size)
+        assertEquals(2, session.dealerHand.size)
+        assertEquals(45, session.deck.remaining)
+        assertEquals(GameResult.PLAYER_WIN, session.result)
+    }
+
+    @Test
     fun `dealer still draws when a hand depends on the total`() {
         // Player K-Q (20) stands, dealer 6 (hole) + 5 (up) = 11 must hit
         val deck = riggedDeck(card(Rank.KING), Card(Rank.SIX, Suit.HEARTS), card(Rank.QUEEN), Card(Rank.FIVE, Suit.HEARTS))
