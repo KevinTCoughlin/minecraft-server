@@ -38,12 +38,13 @@ data class HandResult(
  *
  * @property playerId The unique ID of the player.
  * @property config The game configuration.
+ * @property deck The shoe to deal from; defaults to a freshly shuffled one built from [config].
  */
 class GameSession(
     val playerId: UUID,
-    private val config: GameConfig = GameConfig()
+    private val config: GameConfig = GameConfig(),
+    val deck: Deck = Deck(config.numberOfDecks, config.reshuffleThreshold)
 ) {
-    val deck = Deck(config.numberOfDecks, config.reshuffleThreshold)
 
     /** All player hands (multiple when split). */
     val playerHands: MutableList<Hand> = mutableListOf()
@@ -302,8 +303,10 @@ class GameSession(
     private fun playDealerTurn() {
         state = GameState.DEALER_TURN
 
-        val allBustedOrSurrendered = playerHands.all { it.isBust || it.hasSurrendered }
-        if (allBustedOrSurrendered) {
+        // A natural Blackjack is settled by the dealer's first two cards alone, so
+        // the dealer only draws when some hand still depends on the final total.
+        val noHandDependsOnDealer = playerHands.all { it.isBust || it.hasSurrendered || it.isBlackjack }
+        if (noHandDependsOnDealer) {
             state = GameState.FINISHED
             determineAllResults()
             return
