@@ -168,4 +168,70 @@ class GameSessionTest {
         assertEquals(1, session.playerHands.size)
         assertEquals(session.playerHand, session.playerHands[0])
     }
+
+    /**
+     * A single-deck shoe whose first draws are [draws], in order. The deal goes
+     * player, dealer (hole), player, dealer (up card); later draws stay random.
+     */
+    private fun riggedDeck(vararg draws: Card) = Deck(shuffler = { cards ->
+        cards.shuffle()
+        draws.forEach { cards.remove(it) }
+        cards.addAll(draws.reversed())
+    })
+
+    private fun card(rank: Rank) = Card(rank, Suit.SPADES)
+
+    @Test
+    fun `dealer does not draw against a player blackjack`() {
+        // Player A-K, dealer 6 (hole) + 5 (up): a total the dealer would normally hit
+        val deck = riggedDeck(card(Rank.ACE), Card(Rank.SIX, Suit.HEARTS), card(Rank.KING), Card(Rank.FIVE, Suit.HEARTS))
+        val session = GameSession(UUID.randomUUID(), GameConfig(), deck)
+
+        assertTrue(session.isFinished)
+        assertEquals(2, session.dealerHand.size)
+        assertEquals(48, session.deck.remaining)
+        assertEquals(GameResult.PLAYER_BLACKJACK, session.result)
+    }
+
+    @Test
+    fun `player blackjack pushes an unpeeked dealer blackjack`() {
+        // Player A-K, dealer A (hole) + Q (up) with peeking off, so only the settle catches it
+        val deck = riggedDeck(card(Rank.ACE), Card(Rank.ACE, Suit.HEARTS), card(Rank.KING), Card(Rank.QUEEN, Suit.HEARTS))
+        val session = GameSession(UUID.randomUUID(), GameConfig(dealerPeeks = false), deck)
+
+        assertTrue(session.isFinished)
+        assertEquals(2, session.dealerHand.size)
+        assertEquals(GameResult.PUSH, session.result)
+    }
+
+    @Test
+    fun `dealer does not draw against a five-card charlie`() {
+        // Player 2-3 hits 2, 3, 4 for a 14-point Charlie; dealer 6 (hole) + 5 (up) would normally hit
+        val deck = riggedDeck(
+            card(Rank.TWO), Card(Rank.SIX, Suit.HEARTS), card(Rank.THREE), Card(Rank.FIVE, Suit.HEARTS),
+            Card(Rank.TWO, Suit.HEARTS), Card(Rank.THREE, Suit.HEARTS), card(Rank.FOUR)
+        )
+        val session = GameSession(UUID.randomUUID(), GameConfig(fiveCardCharlie = true, charlieCardCount = 5), deck)
+
+        repeat(3) { session.hit() }
+
+        assertTrue(session.isFinished)
+        assertEquals(5, session.playerHand.size)
+        assertEquals(2, session.dealerHand.size)
+        assertEquals(45, session.deck.remaining)
+        assertEquals(GameResult.PLAYER_WIN, session.result)
+    }
+
+    @Test
+    fun `dealer still draws when a hand depends on the total`() {
+        // Player K-Q (20) stands, dealer 6 (hole) + 5 (up) = 11 must hit
+        val deck = riggedDeck(card(Rank.KING), Card(Rank.SIX, Suit.HEARTS), card(Rank.QUEEN), Card(Rank.FIVE, Suit.HEARTS))
+        val session = GameSession(UUID.randomUUID(), GameConfig(), deck)
+
+        assertTrue(session.isPlayerTurn)
+        session.stand()
+
+        assertTrue(session.isFinished)
+        assertTrue(session.dealerHand.size > 2)
+    }
 }

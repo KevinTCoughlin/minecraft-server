@@ -38,12 +38,13 @@ data class HandResult(
  *
  * @property playerId The unique ID of the player.
  * @property config The game configuration.
+ * @property deck The shoe to deal from; defaults to a freshly shuffled one built from [config].
  */
 class GameSession(
     val playerId: UUID,
-    private val config: GameConfig = GameConfig()
+    private val config: GameConfig = GameConfig(),
+    val deck: Deck = Deck(config.numberOfDecks, config.reshuffleThreshold)
 ) {
-    val deck = Deck(config.numberOfDecks, config.reshuffleThreshold)
 
     /** All player hands (multiple when split). */
     val playerHands: MutableList<Hand> = mutableListOf()
@@ -200,7 +201,7 @@ class GameSession(
             return true
         }
 
-        if (config.fiveCardCharlie && playerHand.size >= config.charlieCardCount && !playerHand.isBust) {
+        if (isCharlie(playerHand)) {
             advanceToNextHandOrDealer()
             return true
         }
@@ -302,8 +303,10 @@ class GameSession(
     private fun playDealerTurn() {
         state = GameState.DEALER_TURN
 
-        val allBustedOrSurrendered = playerHands.all { it.isBust || it.hasSurrendered }
-        if (allBustedOrSurrendered) {
+        // A natural is settled by the dealer's first two cards and a Charlie wins
+        // outright, so the dealer only draws when some hand depends on the final total.
+        val noHandDependsOnDealer = playerHands.all { it.isBust || it.hasSurrendered || it.isBlackjack || isCharlie(it) }
+        if (noHandDependsOnDealer) {
             state = GameState.FINISHED
             determineAllResults()
             return
@@ -330,6 +333,9 @@ class GameSession(
         }
     }
 
+    private fun isCharlie(hand: Hand): Boolean =
+        config.fiveCardCharlie && hand.size >= config.charlieCardCount && !hand.isBust
+
     private fun determineAllResults() {
         handResults.clear()
         for (hand in playerHands) {
@@ -342,7 +348,7 @@ class GameSession(
     private fun determineHandResult(hand: Hand): GameResult {
         if (hand.hasSurrendered) return GameResult.SURRENDERED
 
-        if (config.fiveCardCharlie && hand.size >= config.charlieCardCount && !hand.isBust) {
+        if (isCharlie(hand)) {
             return GameResult.PLAYER_WIN
         }
 

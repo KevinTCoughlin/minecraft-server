@@ -8,10 +8,12 @@ package com.example.blackjack.game
  *
  * @property numberOfDecks Number of standard 52-card decks (1–8).
  * @property reshuffleThreshold Fraction of cards remaining that triggers reshuffle.
+ * @property shuffler Orders the shoe on every shuffle; tests can inject a fixed order.
  */
 class Deck(
     private val numberOfDecks: Int = 1,
-    private val reshuffleThreshold: Double = 0.25
+    private val reshuffleThreshold: Double = 0.25,
+    private val shuffler: (MutableList<Card>) -> Unit = { it.shuffle() }
 ) {
     private val _cards = mutableListOf<Card>()
     private var _totalCards: Int = 0
@@ -54,7 +56,7 @@ class Deck(
 
     /** Shuffles the remaining cards in the shoe. */
     fun shuffle() {
-        _cards.shuffle()
+        shuffler(_cards)
     }
 
     /**
