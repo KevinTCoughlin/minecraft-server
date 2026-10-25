@@ -32,7 +32,7 @@ abstract class BaseBlackjackCommand(protected val plugin: BlackjackPlugin) {
                 announcements.announceWin(player, result)
             }
             GameResult.PLAYER_WIN -> announcements.announceWin(player, result)
-            else -> Unit
+            GameResult.DEALER_WIN, GameResult.PLAYER_BUST, GameResult.PUSH, GameResult.SURRENDERED -> Unit
         }
 
         if (endResult.winStreak > 0) {
