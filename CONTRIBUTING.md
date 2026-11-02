@@ -33,8 +33,9 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 ### Prerequisites
 
-- **Java 25+** (Eclipse Temurin recommended; required by Paper 26.3)
-- **Gradle 8.x** (wrapper included)
+- **Java 25** (Eclipse Temurin). This release does not build or run on Java 21.
+- **Paper 26.3**. Minecraft 1.21.x users should stay on the previous release.
+- **Gradle 9.8** (wrapper included; Gradle 8 cannot run on Java 25)
 - **Git**
 
 ### Install Eclipse Temurin

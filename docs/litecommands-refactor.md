@@ -266,7 +266,7 @@ LiteCommands works best with parameter names enabled at compile time:
 ```kotlin
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "25"
         javaParameters = true  // Add this
     }
 }
@@ -746,7 +746,7 @@ dependencies {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "25"
         javaParameters = true
     }
 }

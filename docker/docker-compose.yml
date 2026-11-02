@@ -1,5 +1,6 @@
 services:
   minecraft:
+    # java25 tag is Eclipse Temurin 25. Paper 26.3 does not run on the Java 21 image.
     image: itzg/minecraft-server:java25
     container_name: minecraft-server
     restart: unless-stopped

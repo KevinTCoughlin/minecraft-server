@@ -1,12 +1,22 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     kotlin("jvm")
     id("com.gradleup.shadow")
 }
 
-kotlin {
-    jvmToolchain {
+// Paper 26.3 plugins are built and run on Java 25. Java 21 cannot load this API.
+java {
+    toolchain {
         languageVersion.set(JavaLanguageVersion.of(25))
         vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
+}
+
+kotlin {
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_25)
     }
 }
 

@@ -30,8 +30,10 @@ A config-driven PaperMC server setup with Kotlin/Java plugin development capabil
 
 ## Prerequisites
 
-- **Java 25** or later (for local development and for running Paper 26.3)
-- **Gradle 8.x** (uses wrapper, auto-downloads)
+This release requires **Java 25** and **Paper 26.3**. Java 21 and Minecraft 1.21.x users should stay on the previous release.
+
+- **Java 25** (Eclipse Temurin). Paper 26.3 does not start on Java 21.
+- **Gradle 9.8** via the wrapper (`./gradlew`). Gradle 8 cannot run on Java 25.
 - **Docker & Docker Compose** (optional, for containerized deployment)
 - **Minecraft Java Edition** client (to connect)
 
@@ -45,7 +47,7 @@ cd minecraft-server
 # Connect to localhost:25565
 ```
 
-Requires Java 25+ (`brew install --cask temurin25`)
+Requires Java 25 and Paper 26.3 (`brew install --cask temurin25`). Java 21 / 1.21.x servers should stay on the previous release.
 
 The management scripts support the Bash and BSD userland included with macOS;
 `update-paper.sh` uses macOS `shasum` when GNU `sha256sum` is unavailable.

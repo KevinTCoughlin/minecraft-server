@@ -48,7 +48,8 @@ template: |
   ## System Requirements
 
   - **PaperMC** 26.3 build 237
-  - **Java Runtime** 25+ (Eclipse Temurin recommended)
+  - **Java 25** (Eclipse Temurin). Java 21 is not supported on this release.
+  - Minecraft 1.21.x servers should stay on the previous release.
   - **Server Memory** 2GB minimum, 4GB recommended
 
   ## Installation

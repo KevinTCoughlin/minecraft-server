@@ -48,7 +48,7 @@ Kotlin + Gradle with version catalog and convention plugin.
 ### Structure
 
 - `gradle/libs.versions.toml` -- all dependency versions (Kotlin, Paper API, Shadow, LiteCommands, JUnit, kotlinx-serialization, kaml)
-- `buildSrc/src/main/kotlin/paper-plugin.gradle.kts` -- convention plugin applied by all 3 plugins (JVM 21 toolchain, shadow JAR, deployToServer task, plugin.yml template expansion)
+- `buildSrc/src/main/kotlin/paper-plugin.gradle.kts` -- convention plugin applied by all 3 plugins (Java 25 toolchain, Kotlin `jvmToolchain(25)` / `jvmTarget` `JVM_25`, shadow JAR, deployToServer task, plugin.yml `api-version` 26.3)
 - `gradle.properties` -- project group/version, `minecraftVersion` (used by convention plugin for plugin.yml `apiVersion`)
 
 ### Plugin Build Files

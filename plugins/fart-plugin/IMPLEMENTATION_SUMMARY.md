@@ -121,7 +121,7 @@ Tell your son the fart command is ready! Once the plugin is built and deployed, 
 - **Language:** Kotlin 2.1.0
 - **API:** PaperMC 26.3.build.237-stable
 - **JVM Target:** Java 25
-- **Build Tool:** Gradle 8.12
+- **Build Tool:** Gradle 9.8 (wrapper)
 - **Shadow Plugin:** 8.1.1 (for JAR packaging)
 
 ## Credits
