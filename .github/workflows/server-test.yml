@@ -227,7 +227,7 @@ jobs:
 
           if [[ "$GC_TYPE" == "zgc" ]]; then
             java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
-              -XX:+UseZGC -XX:+ZGenerational \
+              -XX:+UseZGC \
               -XX:+AlwaysPreTouch -XX:+DisableExplicitGC \
               -jar paper.jar --nogui &
           else

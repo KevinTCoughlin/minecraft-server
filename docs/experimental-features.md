@@ -49,11 +49,12 @@ For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=
 
 ```bash
 -XX:+UseZGC
--XX:+ZGenerational
 -XX:+AlwaysPreTouch
 -XX:+DisableExplicitGC
 -XX:+PerfDisableSharedMem
 ```
+
+JDK 24 removed `-XX:+ZGenerational`. Generational ZGC is the only mode, and passing the old flag makes Java 25 print a warning.
 
 **ZGC Benefits**:
 - Sub-millisecond pause times (vs G1GC's ~200ms target)

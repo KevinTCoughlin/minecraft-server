@@ -84,10 +84,9 @@ JVM_FLAGS=(
 )
 
 if [[ "${GC_TYPE,,}" == "zgc" ]]; then
-    # ZGC - low latency collector (default in MC 26.1+; this server's 26.x line uses Java 25)
+    # ZGC. JDK 24 removed -XX:+ZGenerational; generational mode is the only ZGC mode.
     JVM_FLAGS+=(
         "-XX:+UseZGC"
-        "-XX:+ZGenerational"
         "-XX:+AlwaysPreTouch"
         "-XX:+DisableExplicitGC"
         "-XX:+PerfDisableSharedMem"
