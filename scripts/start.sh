@@ -50,13 +50,15 @@ else
     JAVA_CMD="java"
 fi
 
-# Paper 26.x requires Java 25. Older tracked versions stay on Java 21.
-REQUIRED_JAVA=21
+# Paper 26.x needs Java 25. Java 21 is accepted only for an explicitly tracked older line.
+# A missing version file follows update-paper.sh and downloads 26.3.
+REQUIRED_JAVA=25
 if [[ -s ".paper-version" ]]; then
     TRACKED_MC=$(<".paper-version")
     TRACKED_MC="${TRACKED_MC%%-*}"
     case "$TRACKED_MC" in
         26.*) REQUIRED_JAVA=25 ;;
+        *) REQUIRED_JAVA=21 ;;
     esac
 fi
 

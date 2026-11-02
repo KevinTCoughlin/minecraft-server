@@ -31,13 +31,15 @@ echo "🎮 Minecraft Server Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Paper 26.x requires Java 25. Older tracked versions stay on Java 21.
-REQUIRED_JAVA=21
+# This repo's default download is Paper 26.3, which needs Java 25.
+# Java 21 is accepted only when .paper-version explicitly tracks an older line.
+REQUIRED_JAVA=25
 if [[ -s server/.paper-version ]]; then
     TRACKED_MC=$(<server/.paper-version)
     TRACKED_MC="${TRACKED_MC%%-*}"
     case "$TRACKED_MC" in
         26.*) REQUIRED_JAVA=25 ;;
+        *) REQUIRED_JAVA=21 ;;
     esac
 fi
 

@@ -177,9 +177,17 @@ if [[ -f ".paper-version" ]]; then
     CURRENT_BUILD=$(cat .paper-version)
 fi
 
-if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" && -s "${SERVER_DIR}/${JAR_NAME}" ]]; then
+# The version file can move ahead of a gitignored JAR (for example an old
+# 1.21.11 paper.jar left in place after .paper-version becomes 26.3-237).
+# Skip the download only when the bytes match the published checksum.
+if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" && -s "${SERVER_DIR}/${JAR_NAME}" ]] &&
+   verify_sha256 "$DOWNLOAD_SHA256" "${SERVER_DIR}/${JAR_NAME}"; then
     log_info "Already at latest version: ${MC_VERSION} build ${LATEST_BUILD}"
     exit 0
+fi
+
+if [[ -s "${SERVER_DIR}/${JAR_NAME}" && "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" ]]; then
+    log_warn "paper.jar does not match Paper ${MC_VERSION} build ${LATEST_BUILD}. Re-downloading."
 fi
 
 # Download beside the destination so the final rename is atomic.
