@@ -73,6 +73,7 @@ RSYNC_ARGS=(
 )
 
 SERVER_FILES=(
+    "server/.paper-version"
     "server/server.properties"
     "server/bukkit.yml"
     "server/commands.yml"

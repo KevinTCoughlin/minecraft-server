@@ -166,9 +166,12 @@ if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
     DOWNLOAD_URL="${API_ORIGIN}${DOWNLOAD_URL}"
 fi
 
-# Create directories
+# Create directories, then pin both paths absolute. A relative SERVER_DIR such
+# as "server" would otherwise be resolved again after cd (server/server/paper.jar).
 mkdir -p "$SERVER_DIR"
 mkdir -p "$BACKUP_DIR"
+SERVER_DIR="$(cd "$SERVER_DIR" && pwd)"
+BACKUP_DIR="$(cd "$BACKUP_DIR" && pwd)"
 cd "$SERVER_DIR"
 
 # Check current version
