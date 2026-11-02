@@ -48,7 +48,7 @@ log_step "Checking Java installation..."
 if ! command -v java &>/dev/null; then
     log_error "Java not found. Install Java ${REQUIRED_JAVA}+ :"
     echo ""
-    echo "  macOS:   brew install --cask temurin${REQUIRED_JAVA}"
+    echo "  macOS:   brew install --cask temurin@${REQUIRED_JAVA}"
     echo "  Linux:   https://adoptium.net/installation/linux/"
     echo "  Windows: Download from https://adoptium.net/"
     echo ""

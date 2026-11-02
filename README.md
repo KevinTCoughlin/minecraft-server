@@ -47,7 +47,7 @@ cd minecraft-server
 # Connect to localhost:25565
 ```
 
-Requires Java 25 and Paper 26.3 (`brew install --cask temurin25`). Java 21 / 1.21.x servers should stay on the previous release.
+Requires Java 25 and Paper 26.3 (`brew install --cask temurin@25`). Java 21 / 1.21.x servers should stay on the previous release.
 
 The management scripts support the Bash and BSD userland included with macOS;
 `update-paper.sh` uses macOS `shasum` when GNU `sha256sum` is unavailable.

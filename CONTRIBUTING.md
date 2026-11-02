@@ -42,7 +42,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 We recommend Eclipse Temurin (Eclipse Foundation's OpenJDK distribution):
 
-- **macOS**: `brew install --cask temurin25`
+- **macOS**: `brew install --cask temurin@25`
 - **Linux**: Follow [Adoptium installation guide](https://adoptium.net/installation/linux/)
 - **Windows**: Download from [Adoptium.net](https://adoptium.net/)
 
