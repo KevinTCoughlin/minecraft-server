@@ -161,7 +161,7 @@ Once the bundle datapack is enabled:
 
 **Problem**: Server won't start with experimental flags
 - **Solution**: This release requires Java 25 and Paper 26.3. Java 21 and Minecraft 1.21.x should stay on the previous release. Check with `java -version`.
-  - On Ubuntu/Debian: `sudo apt install openjdk-21-jre-headless` (or openjdk-25 when available)
+  - On Ubuntu/Debian: install Eclipse Temurin 25 from [Adoptium](https://adoptium.net/installation/linux/). `openjdk-21-jre` cannot run Paper 26.3.
   - On macOS with Homebrew: `brew install --cask temurin@25`
   - On Windows: Download from [Adoptium](https://adoptium.net/)
   - Set `JAVA_HOME` to use a specific Java version

@@ -214,30 +214,16 @@ jobs:
       - name: Start server
         id: start
         run: |
-          cd $SERVER_DIR
-
           export MIN_RAM="1G"
           export MAX_RAM="2G"
           export GC_TYPE="${{ matrix.gc }}"
 
           echo "Starting server with GC_TYPE=$GC_TYPE, Java ${{ matrix.java }}"
-
-          # Start server in background
           java -version
 
-          if [[ "$GC_TYPE" == "zgc" ]]; then
-            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
-              -XX:+UseZGC \
-              -XX:+AlwaysPreTouch -XX:+DisableExplicitGC \
-              -jar paper.jar --nogui &
-          else
-            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
-              -XX:+UseG1GC -XX:+ParallelRefProcEnabled \
-              -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions \
-              -XX:+DisableExplicitGC -XX:+AlwaysPreTouch \
-              -jar paper.jar --nogui &
-          fi
-
+          # Use scripts/start.sh so the smoke test runs the same flags as production,
+          # including the Java 25 ZGC set. The script execs java and keeps this PID.
+          ./scripts/start.sh &
           SERVER_PID=$!
           echo "pid=${SERVER_PID}" >> $GITHUB_OUTPUT
           echo "Server started with PID ${SERVER_PID}"
