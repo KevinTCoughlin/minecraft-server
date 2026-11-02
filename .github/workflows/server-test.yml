@@ -22,7 +22,7 @@ on:
       java_version:
         description: 'Java version (21 or 25)'
         required: false
-        default: '21'
+        default: '25'
   schedule:
     # Run weekly on Sundays at 6 AM UTC
     - cron: '0 6 * * 0'
@@ -45,11 +45,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Stable: Java 21 + G1GC (production config)
-          - java: '21'
+          # Stable: Java 25 + G1GC. Paper 26.3 will not boot on Java 21.
+          - java: '25'
             gc: 'g1gc'
             mc: 'stable'
-            name: 'Stable (Java 21, G1GC)'
+            name: 'Stable (Java 25, G1GC)'
           # Preview: Java 25 + ZGC (MC 26.1+ config)
           - java: '25'
             gc: 'zgc'
@@ -214,33 +214,44 @@ jobs:
       - name: Start server
         id: start
         run: |
-          cd $SERVER_DIR
-
           export MIN_RAM="1G"
           export MAX_RAM="2G"
           export GC_TYPE="${{ matrix.gc }}"
 
           echo "Starting server with GC_TYPE=$GC_TYPE, Java ${{ matrix.java }}"
-
-          # Start server in background
           java -version
 
-          if [[ "$GC_TYPE" == "zgc" ]]; then
-            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
-              -XX:+UseZGC -XX:+ZGenerational \
-              -XX:+AlwaysPreTouch -XX:+DisableExplicitGC \
-              -jar paper.jar --nogui &
-          else
-            java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
-              -XX:+UseG1GC -XX:+ParallelRefProcEnabled \
-              -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions \
-              -XX:+DisableExplicitGC -XX:+AlwaysPreTouch \
-              -jar paper.jar --nogui &
-          fi
-
+          # Use scripts/start.sh so the smoke test runs the same flags as production,
+          # including the Java 25 ZGC set. The script execs java and keeps this PID.
+          ./scripts/start.sh &
           SERVER_PID=$!
           echo "pid=${SERVER_PID}" >> $GITHUB_OUTPUT
           echo "Server started with PID ${SERVER_PID}"
+
+          # start.sh execs java and keeps this PID. "Done" in the log is not
+          # enough: the old -XX:+ZGenerational flag only warns on Java 25, so a
+          # server can still boot without using the flags this job claims to test.
+          CMDLINE=""
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if [[ -r "/proc/${SERVER_PID}/cmdline" ]]; then
+              CMDLINE=$(tr '\0' ' ' < "/proc/${SERVER_PID}/cmdline" || true)
+            fi
+            if [[ "$CMDLINE" == *paper.jar* ]]; then
+              break
+            fi
+            sleep 0.2
+          done
+          echo "Command: ${CMDLINE}"
+          if [[ "$CMDLINE" != *paper.jar* ]]; then
+            echo "Server process did not reach java -jar paper.jar"
+            exit 1
+          fi
+          if [[ "$GC_TYPE" == "zgc" ]]; then
+            [[ "$CMDLINE" == *"-XX:+UseZGC"* ]] || { echo "ZGC run is missing -XX:+UseZGC"; exit 1; }
+            [[ "$CMDLINE" != *ZGenerational* ]] || { echo "Removed -XX:+ZGenerational is still set"; exit 1; }
+          else
+            [[ "$CMDLINE" == *"-XX:+UseG1GC"* ]] || { echo "G1GC run is missing -XX:+UseG1GC"; exit 1; }
+          fi
 
       - name: Wait for server startup
         run: |

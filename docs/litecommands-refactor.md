@@ -266,7 +266,7 @@ LiteCommands works best with parameter names enabled at compile time:
 ```kotlin
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "25"
         javaParameters = true  // Add this
     }
 }
@@ -735,7 +735,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.237-stable")
     implementation(kotlin("stdlib"))
     implementation("dev.rollczi:litecommands-bukkit:3.10.9")
     implementation("dev.rollczi:litecommands-adventure:3.10.9")
@@ -746,7 +746,7 @@ dependencies {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "25"
         javaParameters = true
     }
 }
@@ -762,7 +762,7 @@ tasks.shadowJar {
 **Author**: Generated as part of the Blackjack Plugin Refactoring Project  
 **Date**: January 2026  
 **Framework Version**: LiteCommands 3.10.9  
-**Minecraft Version**: 1.21.11 (Paper)
+**Minecraft Version**: 26.3 (Paper build 237)
 
 ---
 

@@ -19,7 +19,7 @@ A config-driven PaperMC server setup with Kotlin/Java plugin development capabil
 
 🚀 **Eclipse Foundation & Microsoft OpenJDK**
 - Built on Eclipse Temurin (Eclipse Foundation's distribution)
-- Java 21 with advanced JVM optimizations
+- Java 25 with advanced JVM optimizations
 - Aikar's flags for optimal Minecraft performance
 - Full support for Microsoft-adopted OpenJDK runtimes
 
@@ -30,8 +30,10 @@ A config-driven PaperMC server setup with Kotlin/Java plugin development capabil
 
 ## Prerequisites
 
-- **Java 21** or later (for local development)
-- **Gradle 8.x** (uses wrapper, auto-downloads)
+This release requires **Java 25** and **Paper 26.3**. Java 21 and Minecraft 1.21.x users should stay on the previous release.
+
+- **Java 25** (Eclipse Temurin). Paper 26.3 does not start on Java 21.
+- **Gradle 9.8** via the wrapper (`./gradlew`). Gradle 8 cannot run on Java 25.
 - **Docker & Docker Compose** (optional, for containerized deployment)
 - **Minecraft Java Edition** client (to connect)
 
@@ -45,7 +47,7 @@ cd minecraft-server
 # Connect to localhost:25565
 ```
 
-Requires Java 21+ (`brew install openjdk@21`)
+Requires Java 25 and Paper 26.3 (`brew install --cask temurin@25`). Java 21 / 1.21.x servers should stay on the previous release.
 
 The management scripts support the Bash and BSD userland included with macOS;
 `update-paper.sh` uses macOS `shasum` when GNU `sha256sum` is unavailable.
@@ -128,7 +130,7 @@ MIN_RAM=2G          # Minimum RAM allocation
 MAX_RAM=4G          # Maximum RAM allocation
 
 # update-paper.sh
-MC_VERSION=1.21.11  # Minecraft version (defaults to server/.paper-version)
+MC_VERSION=26.3  # Minecraft version (defaults to server/.paper-version)
 
 # stop.sh
 RCON_HOST=localhost
@@ -233,7 +235,7 @@ class MyPlugin : JavaPlugin() {
 ### Paper API Resources
 
 - [Paper API Documentation](https://docs.papermc.io/paper)
-- [Paper API Javadocs](https://jd.papermc.io/paper/1.21/)
+- [Paper API Javadocs](https://jd.papermc.io/paper/26.3/)
 - [Paper Development Guide](https://docs.papermc.io/paper/dev)
 
 ## Server Configuration
@@ -245,6 +247,8 @@ class MyPlugin : JavaPlugin() {
 - **config/paper-world-defaults.yml**: Default world settings
 - **bukkit.yml**: Bukkit-level settings
 - **spigot.yml**: Spigot performance tuning
+
+Paper 26.3 build 237 is the pinned server and plugin API. What that build changes, which plugins were checked, and what to retest before a future 26.4 move are in [Paper 26.4 prep](docs/paper-26.4-prep.md).
 
 ### Optional RCON (Disabled by Default)
 

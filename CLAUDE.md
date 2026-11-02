@@ -2,7 +2,7 @@
 
 ## Server Overview
 
-PaperMC 1.21.11 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate.
+PaperMC 26.3 build 237 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate. Requires Java 25. Plugin compatibility for this build, and the not-yet-migrated Minecraft 26.4 login change, are recorded in `docs/paper-26.4-prep.md`.
 
 ### Management
 
@@ -48,7 +48,7 @@ Kotlin + Gradle with version catalog and convention plugin.
 ### Structure
 
 - `gradle/libs.versions.toml` -- all dependency versions (Kotlin, Paper API, Shadow, LiteCommands, JUnit, kotlinx-serialization, kaml)
-- `buildSrc/src/main/kotlin/paper-plugin.gradle.kts` -- convention plugin applied by all 3 plugins (JVM 21 toolchain, shadow JAR, deployToServer task, plugin.yml template expansion)
+- `buildSrc/src/main/kotlin/paper-plugin.gradle.kts` -- convention plugin applied by all 3 plugins (Java 25 toolchain, Kotlin `jvmToolchain(25)` / `jvmTarget` `JVM_25`, shadow JAR, deployToServer task, plugin.yml `api-version` 26.3)
 - `gradle.properties` -- project group/version, `minecraftVersion` (used by convention plugin for plugin.yml `apiVersion`)
 
 ### Plugin Build Files

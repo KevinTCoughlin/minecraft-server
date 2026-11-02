@@ -8,7 +8,7 @@ This server has been configured with experimental features at two levels:
 1. **JVM Level** - Advanced Java Virtual Machine optimizations
 2. **Minecraft Level** - Experimental game features via datapacks
 
-**Note**: PaperMC 1.21.x requires Java 21+. Minecraft 26.1+ requires Java 25+. This server supports both G1GC (Aikar's flags) and ZGC garbage collectors.
+**Note**: This server runs Paper 26.3, which requires Java 25+. The start script still offers both G1GC (Aikar's flags, the default) and ZGC.
 
 ## JVM Experimental Features
 
@@ -49,11 +49,12 @@ For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=
 
 ```bash
 -XX:+UseZGC
--XX:+ZGenerational
 -XX:+AlwaysPreTouch
 -XX:+DisableExplicitGC
 -XX:+PerfDisableSharedMem
 ```
+
+JDK 24 removed `-XX:+ZGenerational`. Generational ZGC is the only mode, and passing the old flag makes Java 25 print a warning.
 
 **ZGC Benefits**:
 - Sub-millisecond pause times (vs G1GC's ~200ms target)
@@ -66,7 +67,7 @@ For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=
 - When minimizing lag spikes is critical
 
 **When to use G1GC**:
-- Minecraft 1.21.x and earlier
+- This repository's default, including Paper 26.3
 - Smaller servers (2-4GB RAM)
 - Maximum compatibility with existing setups
 
@@ -159,8 +160,8 @@ Once the bundle datapack is enabled:
 ### JVM Flags Issues
 
 **Problem**: Server won't start with experimental flags
-- **Solution**: Check Java version (requires Java 21+ for MC 1.21.x, Java 25+ for MC 26.1+): `java -version`
-  - On Ubuntu/Debian: `sudo apt install openjdk-21-jre-headless` (or openjdk-25 when available)
+- **Solution**: This release requires Java 25 and Paper 26.3. Java 21 and Minecraft 1.21.x should stay on the previous release. Check with `java -version`.
+  - On Ubuntu/Debian: install Eclipse Temurin 25 from [Adoptium](https://adoptium.net/installation/linux/). `openjdk-21-jre` cannot run Paper 26.3.
   - On macOS with Homebrew: `brew install --cask temurin@25`
   - On Windows: Download from [Adoptium](https://adoptium.net/)
   - Set `JAVA_HOME` to use a specific Java version

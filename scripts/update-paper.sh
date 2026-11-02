@@ -10,13 +10,13 @@ BACKUP_DIR="${SERVER_DIR}/backups"
 # Version options:
 #   - "latest"   : Latest stable release
 #   - "snapshot" : Latest version (may include snapshots/pre-releases)
-#   - "1.21.11"  : Specific version
+#   - "26.3"     : Specific version
 TRACKED_VERSION=""
 if [[ -s "${SERVER_DIR}/.paper-version" ]]; then
     TRACKED_BUILD=$(<"${SERVER_DIR}/.paper-version")
     TRACKED_VERSION="${TRACKED_BUILD%-*}"
 fi
-MC_VERSION="${MC_VERSION:-${TRACKED_VERSION:-1.21.11}}"
+MC_VERSION="${MC_VERSION:-${TRACKED_VERSION:-26.3}}"
 
 # Hot swap mode: update JAR while server is running (requires restart)
 HOT_SWAP="${HOT_SWAP:-false}"
@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $(basename "$0") [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  -v, --version VERSION  Specific MC version (e.g., 1.21.11)"
+            echo "  -v, --version VERSION  Specific MC version (e.g., 26.3)"
             echo "  -l, --latest           Latest stable release"
             echo "  -s, --snapshot         Latest version (including snapshots)"
             echo "  -H, --hot-swap         Prepare for hot swap (atomic update)"
@@ -166,9 +166,12 @@ if [[ "$DOWNLOAD_URL" != http://* && "$DOWNLOAD_URL" != https://* ]]; then
     DOWNLOAD_URL="${API_ORIGIN}${DOWNLOAD_URL}"
 fi
 
-# Create directories
+# Create directories, then pin both paths absolute. A relative SERVER_DIR such
+# as "server" would otherwise be resolved again after cd (server/server/paper.jar).
 mkdir -p "$SERVER_DIR"
 mkdir -p "$BACKUP_DIR"
+SERVER_DIR="$(cd "$SERVER_DIR" && pwd)"
+BACKUP_DIR="$(cd "$BACKUP_DIR" && pwd)"
 cd "$SERVER_DIR"
 
 # Check current version
@@ -177,9 +180,17 @@ if [[ -f ".paper-version" ]]; then
     CURRENT_BUILD=$(cat .paper-version)
 fi
 
-if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" ]]; then
+# The version file can move ahead of a gitignored JAR (for example an old
+# 1.21.11 paper.jar left in place after .paper-version becomes 26.3-237).
+# Skip the download only when the bytes match the published checksum.
+if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" && -s "${SERVER_DIR}/${JAR_NAME}" ]] &&
+   verify_sha256 "$DOWNLOAD_SHA256" "${SERVER_DIR}/${JAR_NAME}"; then
     log_info "Already at latest version: ${MC_VERSION} build ${LATEST_BUILD}"
     exit 0
+fi
+
+if [[ -s "${SERVER_DIR}/${JAR_NAME}" && "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" ]]; then
+    log_warn "paper.jar does not match Paper ${MC_VERSION} build ${LATEST_BUILD}. Re-downloading."
 fi
 
 # Download beside the destination so the final rename is atomic.

@@ -63,7 +63,7 @@ The repository has been modernized with industry-standard CI/CD practices, secur
 - SBOM generation for container images
 
 #### Server Test Workflow (`.github/workflows/server-test.yml`)
-- Matrix testing with Java 21 and 25
+- Matrix testing with Java 25 (G1GC on the tracked Paper 26.3 build, ZGC on the newest Paper line)
 - G1GC and ZGC garbage collector testing
 - Scheduled weekly runs
 - Enhanced Java version verification
