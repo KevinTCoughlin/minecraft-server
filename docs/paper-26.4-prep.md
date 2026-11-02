@@ -86,7 +86,10 @@ Packets after the acknowledgement use the new settings. The old immediate switch
 
 Live server only. Run against Paper 26.3 build 237 with the three first-party jars, then again with Geyser 2.12.1-b1280, Floodgate 2.2.5-b141, WorldEdit 7.4.6, and Multiverse-Core 5.8.2 if those are deployed.
 
-1. **Boot.** `./setup.sh` then `./scripts/start.sh` on Java 25. Log contains `Done` and the version line for 26.3 build 237. No crash report. Docker: `docker compose up` from `docker/` with `VERSION=26.3` and `PAPER_BUILD=237`, and the health check goes green.
+1. **Boot.** `./setup.sh` then `./scripts/start.sh` on Java 25. Log contains `Done` and `26.3-237`. No crash report. `Done` alone is not a pass: an older jar and a server still passing `-XX:+ZGenerational` both reach `Done`.
+   - **Stale jar.** Leave `.paper-version` at `26.3-237`, replace `paper.jar` with any other file, and run `./scripts/update-paper.sh`. It must refuse to stay on that file and download build 237. A script that prints "Already at latest version" here is still broken.
+   - **ZGC.** Stop the server, then `GC_TYPE=zgc ./scripts/start.sh`. The process command line includes `-XX:+UseZGC` and does not include `ZGenerational`. The log does not contain `Ignoring option ZGenerational`.
+   - **Docker.** `docker compose up` from `docker/` with `VERSION=26.3` and `PAPER_BUILD=237`, and the health check goes green.
 2. **Direct fire, once.** Survival player, no resistance or fire protection, standing in fire until death. One death message. If a death-ban or parkour death counter is installed, it increments by one. An operator in creative, and a player with vanilla invulnerability, takes no damage.
 3. **Burn tick.** Light a player, then leave the fire block. Further damage is `FIRE_TICK` only. Still one death when health reaches zero.
 4. **Dragon breath.** Stand in dragon's breath. Confirm the server does not require a plugin to translate `DRAGON_BREATH`; no first-party plugin branches on that cause.
