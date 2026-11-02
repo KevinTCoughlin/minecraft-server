@@ -3,7 +3,7 @@
 # Designed for Eclipse Temurin (Eclipse Foundation's OpenJDK)
 #
 # This script:
-# - Verifies Java 21+ installation (Eclipse Temurin recommended)
+# - Verifies the Java version required by server/.paper-version (Java 25+ for Paper 26.x)
 # - Downloads latest PaperMC server
 # - Accepts EULA
 # - Prepares server for first run
@@ -31,13 +31,23 @@ echo "🎮 Minecraft Server Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# Paper 26.x requires Java 25. Older tracked versions stay on Java 21.
+REQUIRED_JAVA=21
+if [[ -s server/.paper-version ]]; then
+    TRACKED_MC=$(<server/.paper-version)
+    TRACKED_MC="${TRACKED_MC%%-*}"
+    case "$TRACKED_MC" in
+        26.*) REQUIRED_JAVA=25 ;;
+    esac
+fi
+
 # Check Java
 log_step "Checking Java installation..."
 if ! command -v java &>/dev/null; then
-    log_error "Java not found. Install Java 21+:"
+    log_error "Java not found. Install Java ${REQUIRED_JAVA}+ :"
     echo ""
-    echo "  macOS:   brew install --cask temurin21"
-    echo "  Linux:   apt install temurin-21-jdk"
+    echo "  macOS:   brew install --cask temurin${REQUIRED_JAVA}"
+    echo "  Linux:   https://adoptium.net/installation/linux/"
     echo "  Windows: Download from https://adoptium.net/"
     echo ""
     echo "Eclipse Temurin (Eclipse Foundation's OpenJDK) is recommended."
@@ -45,19 +55,19 @@ if ! command -v java &>/dev/null; then
 fi
 
 JAVA_VERSION_STR=$(java -version 2>&1 | head -1 | cut -d'"' -f2)
-# Extract leading numeric major version (e.g., "21" from "21.0.1" or "25" from "25-ea")
+# Extract leading numeric major version (e.g., "25" from "25.0.1")
 JAVA_VER=$(echo "$JAVA_VERSION_STR" | grep -oE '^[0-9]+')
 JAVA_VENDOR=$(java -version 2>&1 | grep -i "runtime" || echo "")
 
 if [[ -z "$JAVA_VER" ]]; then
     log_error "Unable to determine Java major version from: $JAVA_VERSION_STR"
-    echo "  Please ensure Java 21+ is installed."
+    echo "  Please ensure Java ${REQUIRED_JAVA}+ is installed."
     exit 1
 fi
 
-if [[ "$JAVA_VER" -lt 21 ]]; then
-    log_error "Java 21+ required (found Java $JAVA_VER)"
-    echo "  Please upgrade to Eclipse Temurin 21: https://adoptium.net/"
+if [[ "$JAVA_VER" -lt "$REQUIRED_JAVA" ]]; then
+    log_error "Java ${REQUIRED_JAVA}+ required (found Java $JAVA_VER)"
+    echo "  Please upgrade to Eclipse Temurin ${REQUIRED_JAVA}: https://adoptium.net/"
     exit 1
 fi
 

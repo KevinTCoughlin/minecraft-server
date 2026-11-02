@@ -10,13 +10,13 @@ BACKUP_DIR="${SERVER_DIR}/backups"
 # Version options:
 #   - "latest"   : Latest stable release
 #   - "snapshot" : Latest version (may include snapshots/pre-releases)
-#   - "1.21.11"  : Specific version
+#   - "26.3"     : Specific version
 TRACKED_VERSION=""
 if [[ -s "${SERVER_DIR}/.paper-version" ]]; then
     TRACKED_BUILD=$(<"${SERVER_DIR}/.paper-version")
     TRACKED_VERSION="${TRACKED_BUILD%-*}"
 fi
-MC_VERSION="${MC_VERSION:-${TRACKED_VERSION:-1.21.11}}"
+MC_VERSION="${MC_VERSION:-${TRACKED_VERSION:-26.3}}"
 
 # Hot swap mode: update JAR while server is running (requires restart)
 HOT_SWAP="${HOT_SWAP:-false}"
@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $(basename "$0") [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  -v, --version VERSION  Specific MC version (e.g., 1.21.11)"
+            echo "  -v, --version VERSION  Specific MC version (e.g., 26.3)"
             echo "  -l, --latest           Latest stable release"
             echo "  -s, --snapshot         Latest version (including snapshots)"
             echo "  -H, --hot-swap         Prepare for hot swap (atomic update)"
@@ -177,7 +177,7 @@ if [[ -f ".paper-version" ]]; then
     CURRENT_BUILD=$(cat .paper-version)
 fi
 
-if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" ]]; then
+if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" && -s "${SERVER_DIR}/${JAR_NAME}" ]]; then
     log_info "Already at latest version: ${MC_VERSION} build ${LATEST_BUILD}"
     exit 0
 fi

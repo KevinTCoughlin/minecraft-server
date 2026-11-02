@@ -42,7 +42,7 @@ docker run -d -p 25565:25565 -v minecraft-data:/server minecraft-server:latest
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: `MEMORY` environment variable (default: 4G)
-- **Version**: `VERSION` environment variable (default: 1.21.11)
+- **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 237)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
 
@@ -50,28 +50,29 @@ Edit `docker-compose.yml` to customize:
 
 The custom Dockerfile:
 
-1. **Downloads Paper** - Resolves the latest stable build from Paper's Fill v3 API
+1. **Downloads Paper** - Fetches the pinned Paper 26.3 build from Paper's Fill v3 API
 2. **Multi-stage build** - Smaller final image
 3. **Security hardened** - Non-root user, minimal base image
 4. **Eclipse Temurin** - Uses Eclipse Foundation's OpenJDK
 
 Build arguments:
 
-- `MC_VERSION` - Minecraft version to download (default: 1.21.11)
+- `MC_VERSION` - Minecraft version to download (default: 26.3)
+- `PAPER_BUILD` - Paper build number (default: 237)
 
 Example:
 
 ```bash
-docker build -f docker/Dockerfile -t minecraft-server:1.21.11 \
-  --build-arg MC_VERSION=1.21.11 .
+docker build -f docker/Dockerfile -t minecraft-server:26.3 \
+  --build-arg MC_VERSION=26.3 --build-arg PAPER_BUILD=237 .
 ```
 
 ## Eclipse Temurin
 
 Both configurations use Eclipse Temurin (Eclipse Foundation's OpenJDK distribution):
 
-- Custom Dockerfile: `eclipse-temurin:21-jre-alpine` base image
-- Docker Compose: itzg image uses Temurin internally
+- Custom Dockerfile: `eclipse-temurin:25-jre-alpine` base image
+- Docker Compose: `itzg/minecraft-server:java25` (Temurin 25)
 
 ## Volumes
 

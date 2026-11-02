@@ -2,7 +2,7 @@
 
 ## Server Overview
 
-PaperMC 1.21.11 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate.
+PaperMC 26.3 build 237 server on port 25565 with Bedrock cross-play via Geyser (port 19132) + Floodgate. Requires Java 25. Plugin compatibility for this build, and the not-yet-migrated Minecraft 26.4 login change, are recorded in `docs/paper-26.4-prep.md`.
 
 ### Management
 

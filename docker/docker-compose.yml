@@ -1,6 +1,6 @@
 services:
   minecraft:
-    image: itzg/minecraft-server:java21
+    image: itzg/minecraft-server:java25
     container_name: minecraft-server
     restart: unless-stopped
     tty: true
@@ -13,7 +13,9 @@ services:
     environment:
       # Server type
       TYPE: "PAPER"
-      VERSION: "1.21.11"
+      # Paper 26.3 build 237 includes the fire-damage, potion-splash, and respawn-radius fixes.
+      VERSION: "26.3"
+      PAPER_BUILD: "237"
       EULA: "TRUE"
 
       # Memory settings with experimental JVM features

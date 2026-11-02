@@ -8,7 +8,7 @@ This server has been configured with experimental features at two levels:
 1. **JVM Level** - Advanced Java Virtual Machine optimizations
 2. **Minecraft Level** - Experimental game features via datapacks
 
-**Note**: PaperMC 1.21.x requires Java 21+. Minecraft 26.1+ requires Java 25+. This server supports both G1GC (Aikar's flags) and ZGC garbage collectors.
+**Note**: This server runs Paper 26.3, which requires Java 25+. The start script still offers both G1GC (Aikar's flags, the default) and ZGC.
 
 ## JVM Experimental Features
 
@@ -66,7 +66,7 @@ For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=
 - When minimizing lag spikes is critical
 
 **When to use G1GC**:
-- Minecraft 1.21.x and earlier
+- This repository's default, including Paper 26.3
 - Smaller servers (2-4GB RAM)
 - Maximum compatibility with existing setups
 

@@ -735,7 +735,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.237-stable")
     implementation(kotlin("stdlib"))
     implementation("dev.rollczi:litecommands-bukkit:3.10.9")
     implementation("dev.rollczi:litecommands-adventure:3.10.9")
@@ -762,7 +762,7 @@ tasks.shadowJar {
 **Author**: Generated as part of the Blackjack Plugin Refactoring Project  
 **Date**: January 2026  
 **Framework Version**: LiteCommands 3.10.9  
-**Minecraft Version**: 1.21.11 (Paper)
+**Minecraft Version**: 26.3 (Paper build 237)
 
 ---
 

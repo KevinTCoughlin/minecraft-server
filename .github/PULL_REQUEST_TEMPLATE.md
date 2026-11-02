@@ -61,4 +61,4 @@ Relates to #
 <!-- Any special deployment considerations? -->
 
 ---
-**Built with Eclipse Temurin OpenJDK 21**
+**Built with Eclipse Temurin OpenJDK 25**

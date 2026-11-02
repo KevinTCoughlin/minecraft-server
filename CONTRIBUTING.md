@@ -33,7 +33,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 ### Prerequisites
 
-- **Java 21+** (Eclipse Temurin recommended)
+- **Java 25+** (Eclipse Temurin recommended; required by Paper 26.3)
 - **Gradle 8.x** (wrapper included)
 - **Git**
 
@@ -41,7 +41,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 We recommend Eclipse Temurin (Eclipse Foundation's OpenJDK distribution):
 
-- **macOS**: `brew install --cask temurin21`
+- **macOS**: `brew install --cask temurin25`
 - **Linux**: Follow [Adoptium installation guide](https://adoptium.net/installation/linux/)
 - **Windows**: Download from [Adoptium.net](https://adoptium.net/)
 
@@ -181,7 +181,7 @@ Add blackjack insurance bet feature
 
 ### Java/Kotlin Code
 
-- Use **Java 21** features where appropriate
+- Use **Java 25** features where appropriate
 - Follow **Kotlin coding conventions** for Kotlin code
 - Use **meaningful variable names**
 - Add **comments for complex logic**
@@ -209,7 +209,7 @@ The project uses automatic formatting:
 ## Additional Resources
 
 - [PaperMC Documentation](https://docs.papermc.io/)
-- [PaperMC API Javadocs](https://jd.papermc.io/paper/1.21/)
+- [PaperMC API Javadocs](https://jd.papermc.io/paper/26.3/)
 - [Kotlin Language Guide](https://kotlinlang.org/docs/home.html)
 - [Eclipse Temurin](https://adoptium.net/)
 

@@ -2,7 +2,7 @@
 # Built on Eclipse Temurin (Eclipse Foundation's OpenJDK)
 
 # Stage 1: Download and prepare Paper
-FROM eclipse-temurin:21-jre-alpine AS downloader
+FROM eclipse-temurin:25-jre-alpine AS downloader
 
 LABEL description="Custom PaperMC Minecraft Server - Builder Stage"
 
@@ -15,22 +15,25 @@ RUN apk add --no-cache \
 WORKDIR /download
 
 # Download Paper directly with error handling
-ARG MC_VERSION=1.21.11
+# Pin the newest Paper 26.3 build that contains the audited 228/229/233 fixes.
+# Build 237 (2026-11-01) is that build. Override PAPER_BUILD only to move forward.
+ARG MC_VERSION=26.3
+ARG PAPER_BUILD=237
 RUN set -e && \
     API_URL="https://fill.papermc.io/v3" && \
     API_ORIGIN="https://fill.papermc.io" && \
     USER_AGENT="minecraft-server-container/1.0 (https://github.com/KevinTCoughlin/minecraft-server)" && \
-    echo "Fetching PaperMC build for Minecraft ${MC_VERSION}..." && \
+    echo "Fetching PaperMC ${MC_VERSION} build ${PAPER_BUILD}..." && \
     BUILDS_JSON=$(curl -fsSL --retry 3 --retry-all-errors -H "User-Agent: ${USER_AGENT}" \
         "${API_URL}/projects/paper/versions/${MC_VERSION}/builds") && \
-    BUILD_INFO=$(echo "$BUILDS_JSON" | jq -cr \
-        '. as $builds | ($builds | map(select(.channel == "STABLE" and .downloads["server:default"] != null)) | max_by(.id)) // ($builds | map(select(.downloads["server:default"] != null)) | max_by(.id)) // empty') && \
+    BUILD_INFO=$(echo "$BUILDS_JSON" | jq -cr --argjson build "$PAPER_BUILD" \
+        'map(select(.id == $build and .downloads["server:default"] != null)) | first // empty') && \
     LATEST_BUILD=$(echo "$BUILD_INFO" | jq -r '.id') && \
     if [ -z "$BUILD_INFO" ] || [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" = "null" ]; then \
-        echo "Error: Could not find builds for version ${MC_VERSION}"; \
+        echo "Error: Could not find Paper ${MC_VERSION} build ${PAPER_BUILD}"; \
         exit 1; \
     fi && \
-    echo "Latest build: ${LATEST_BUILD}" && \
+    echo "Selected build: ${LATEST_BUILD}" && \
     DOWNLOAD_URL=$(echo "$BUILD_INFO" | jq -r '.downloads["server:default"].url') && \
     DOWNLOAD_SHA256=$(echo "$BUILD_INFO" | jq -r '.downloads["server:default"].checksums.sha256') && \
     if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ] || \
@@ -50,7 +53,7 @@ RUN set -e && \
     echo "Download complete: $(du -h /download/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 LABEL org.opencontainers.image.authors="KevinTCoughlin"
 LABEL org.opencontainers.image.source="https://github.com/KevinTCoughlin/minecraft-server"

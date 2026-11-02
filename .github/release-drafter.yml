@@ -47,8 +47,8 @@ template: |
 
   ## System Requirements
 
-  - **PaperMC** 1.21.11
-  - **Java Runtime** 21+ (Eclipse Temurin recommended)
+  - **PaperMC** 26.3 build 237
+  - **Java Runtime** 25+ (Eclipse Temurin recommended)
   - **Server Memory** 2GB minimum, 4GB recommended
 
   ## Installation
@@ -61,4 +61,4 @@ template: |
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
 
-  Built with Eclipse Temurin OpenJDK 21 ☕
+  Built with Eclipse Temurin OpenJDK 25 ☕

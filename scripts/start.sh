@@ -50,15 +50,25 @@ else
     JAVA_CMD="java"
 fi
 
+# Paper 26.x requires Java 25. Older tracked versions stay on Java 21.
+REQUIRED_JAVA=21
+if [[ -s ".paper-version" ]]; then
+    TRACKED_MC=$(<".paper-version")
+    TRACKED_MC="${TRACKED_MC%%-*}"
+    case "$TRACKED_MC" in
+        26.*) REQUIRED_JAVA=25 ;;
+    esac
+fi
+
 # Check Java version
 if ! command -v "$JAVA_CMD" &> /dev/null; then
-    log_error "Java not found. Please install Java 21 or later."
+    log_error "Java not found. Please install Java ${REQUIRED_JAVA} or later."
     exit 1
 fi
 
 JAVA_VERSION=$("$JAVA_CMD" -version 2>&1 | head -n1 | cut -d'"' -f2 | cut -d'.' -f1)
-if [[ "$JAVA_VERSION" -lt 21 ]]; then
-    log_error "Java 21 or later is required. Found Java $JAVA_VERSION"
+if [[ "$JAVA_VERSION" -lt "$REQUIRED_JAVA" ]]; then
+    log_error "Java ${REQUIRED_JAVA} or later is required. Found Java $JAVA_VERSION"
     exit 1
 fi
 
@@ -72,7 +82,7 @@ JVM_FLAGS=(
 )
 
 if [[ "${GC_TYPE,,}" == "zgc" ]]; then
-    # ZGC - low latency collector (default in MC 26.1+, requires Java 21+)
+    # ZGC - low latency collector (default in MC 26.1+; this server's 26.x line uses Java 25)
     JVM_FLAGS+=(
         "-XX:+UseZGC"
         "-XX:+ZGenerational"
