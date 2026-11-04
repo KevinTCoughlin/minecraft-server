@@ -10,6 +10,11 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   # Gradle dependencies
   - package-ecosystem: "gradle"
@@ -34,6 +39,8 @@ updates:
         patterns:
           - "org.junit*"
           - "*test*"
+    cooldown:
+      default-days: 7
 
   # Docker dependencies
   - package-ecosystem: "docker"
@@ -45,3 +52,8 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      docker:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
