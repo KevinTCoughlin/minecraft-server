@@ -64,8 +64,11 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN addgroup -g 1000 -S minecraft && \
     adduser -u 1000 -S minecraft -G minecraft
 
-# Install runtime utilities (including busybox-extras for nc in healthcheck)
-RUN apk add --no-cache \
+# Install runtime utilities (including busybox-extras for nc in healthcheck).
+# `apk upgrade` pulls Alpine security fixes the Temurin base image has not
+# picked up yet (e.g. libexpat 2.10.0-r0 for CVE-2026-113351/117610/118370).
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     bash \
     curl \
     jq \
