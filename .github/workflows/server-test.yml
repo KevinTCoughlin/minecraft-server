@@ -27,6 +27,12 @@ on:
     # Run weekly on Sundays at 6 AM UTC
     - cron: '0 6 * * 0'
 
+# A new push to a pull request makes the run in flight irrelevant; runs on
+# branches and tags always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PAPER_API: 'https://fill.papermc.io/v3'
   PAPER_API_ORIGIN: 'https://fill.papermc.io'
