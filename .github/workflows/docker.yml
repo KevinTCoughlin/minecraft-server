@@ -15,6 +15,12 @@ on:
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 
+# A new push to a pull request makes the run in flight irrelevant; runs on
+# branches and tags always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
