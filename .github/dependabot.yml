@@ -39,6 +39,10 @@ updates:
         patterns:
           - "org.junit*"
           - "*test*"
+      # Everything else in one PR. Groups are matched in order, so kotlin and
+      # testing still get their own PRs.
+      gradle:
+        patterns: ["*"]
     cooldown:
       default-days: 7
 
