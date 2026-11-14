@@ -133,7 +133,6 @@ To enable additional experimental datapacks:
 
 3. **Available Experimental Packs** (varies by Minecraft version):
    - `bundle` - Bundle items (enabled by default in this server)
-   - For Minecraft 1.21.4, the Bundle feature is the primary experimental datapack
    - Check [Minecraft Wiki - Experiments](https://minecraft.wiki/w/Experiments) for version-specific experimental features
 
 ### Important Warnings
