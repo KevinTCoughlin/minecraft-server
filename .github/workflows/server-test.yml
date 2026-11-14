@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       mc_version:
-        description: 'Minecraft version (e.g., 1.21.4 or snapshot)'
+        description: 'Minecraft version (e.g., 26.3 or snapshot)'
         required: false
         default: 'latest'
       java_version:
