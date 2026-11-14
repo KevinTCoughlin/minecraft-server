@@ -30,10 +30,12 @@ cd ..  # Go to repository root
 docker build -f docker/Dockerfile -t minecraft-server:latest .
 
 # Run the custom image
-docker run -d -p 25565:25565 -v minecraft-data:/server minecraft-server:latest
+docker run -d -p 25565:25565 -v minecraft-world:/server/parkour-spiral minecraft-server:latest
 ```
 
-**Important**: The Dockerfile must be built from the repository root as the build context, not from the `docker/` directory, because it needs access to `server/` and `scripts/` directories.
+Mount volumes on the world directories only. `/server` holds `paper.jar` and the configs baked into the image; a volume over it would hide (or, under Apple `container`, replace) them.
+
+**Important**: The Dockerfile must be built from the repository root as the build context, not from the `docker/` directory, because it copies config files from `server/`.
 
 ## Configuration
 
@@ -42,7 +44,7 @@ docker run -d -p 25565:25565 -v minecraft-data:/server minecraft-server:latest
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: `MEMORY` environment variable (default: 4G)
-- **Version**: `VERSION` environment variable (default: 1.21.4)
+- **Version**: `VERSION` environment variable (default: 1.21.11)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
 
@@ -50,27 +52,27 @@ Edit `docker-compose.yml` to customize:
 
 The custom Dockerfile:
 
-1. **Downloads Paper** - Uses the update-paper.sh script
+1. **Downloads Paper** - Fetches the latest build for `MC_VERSION` from the PaperMC API
 2. **Multi-stage build** - Smaller final image
 3. **Security hardened** - Non-root user, minimal base image
 4. **Eclipse Temurin** - Uses Eclipse Foundation's OpenJDK
 
 Build arguments:
 
-- `MC_VERSION` - Minecraft version to download (default: 1.21.4)
+- `MC_VERSION` - Minecraft version to download (default: 1.21.11)
 
 Example:
 
 ```bash
-docker build -f docker/Dockerfile -t minecraft-server:1.21.4 \
-  --build-arg MC_VERSION=1.21.4 .
+docker build -f docker/Dockerfile -t minecraft-server:1.21.11 \
+  --build-arg MC_VERSION=1.21.11 .
 ```
 
 ## Eclipse Temurin
 
 Both configurations use Eclipse Temurin (Eclipse Foundation's OpenJDK distribution):
 
-- Custom Dockerfile: `eclipse-temurin:21-jre-alpine` base image
+- Custom Dockerfile: `eclipse-temurin:25-jre-alpine` base image
 - Docker Compose: itzg image uses Temurin internally
 
 ## Volumes
@@ -94,9 +96,13 @@ Mount volumes for persistence:
 ```bash
 docker run -d \
   -p 25565:25565 \
-  -v minecraft-data:/server \
+  -v minecraft-world:/server/parkour-spiral \
+  -v minecraft-world_nether:/server/parkour-spiral_nether \
+  -v minecraft-world_the_end:/server/parkour-spiral_the_end \
   minecraft-server:latest
 ```
+
+(`parkour-spiral` is `level-name` in `server/server.properties`.)
 
 ## Networking
 
@@ -104,10 +110,38 @@ Default ports:
 
 - **25565** - Minecraft server (TCP/UDP)
 - **25575** - RCON (TCP)
+- **19132** - Bedrock via Geyser (UDP), when the Geyser plugin is installed
 
 ## Health Checks
 
-Both configurations include health checks that verify the server is accepting connections.
+Both configurations include health checks that verify the server is accepting connections. (Apple `container` ignores `HEALTHCHECK`.)
+
+## Apple container (macOS)
+
+On macOS the root `justfile` drives Apple's [`container`](https://github.com/apple/container) CLI by default (podman elsewhere; override with `CONTAINER_ENGINE`). Run from the repository root:
+
+```bash
+container system start   # once per boot
+just image               # build docker/Dockerfile with context .
+just run                 # start detached as `minecraft-server`
+just logs                # follow logs, wait for "Done"
+just rcon list           # RCON from the host (needs python3)
+just shell               # shell in the container
+just stop                # stop and remove the container; volumes are kept
+```
+
+What `just run` does and why:
+
+- **Resources**: `container` defaults to 1 GB of memory, too little for `-Xmx4G`, so it passes `--memory 5G --cpus 2` (override with `MC_MEMORY` / `MC_CPUS`). The long flags are deliberate: podman reads `-c` as CPU shares.
+- **Ports**: publishes 25565/tcp+udp, 19132/udp and RCON 25575 on `127.0.0.1` only. Override host ports with `MC_PORT`, `BEDROCK_PORT` and `RCON_PORT`, e.g. to run beside another server:
+  ```bash
+  MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133 just run
+  MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133 just rcon list
+  ```
+- **Volumes**: the three world dirs live on named volumes `minecraft-server-world`, `-world_nether` and `-world_the_end` (prefix: `MC_VOLUME_PREFIX`). `container` needs them created first and does not seed them from the image, so they start empty and root-owned; the recipe creates them and chowns them to the `minecraft` user (uid 1000).
+- **No compose, restart policy or health checks**: `docker-compose.yml` does not apply. Run `just run` again after a reboot; the world survives on the volumes.
+
+Remove the worlds with `container volume rm minecraft-server-world minecraft-server-world_nether minecraft-server-world_the_end`.
 
 ## Management
 

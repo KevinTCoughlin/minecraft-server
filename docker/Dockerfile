@@ -14,30 +14,23 @@ RUN apk add --no-cache \
 
 WORKDIR /tmp
 
-# Download Paper directly with error handling
-ARG MC_VERSION=1.21.4
+# Download Paper from the Fill v3 API (the v2 API now returns 410 Gone)
+ARG MC_VERSION=1.21.11
 RUN set -e && \
-    API_URL="https://api.papermc.io/v2/projects/paper" && \
-    echo "Fetching PaperMC build for Minecraft ${MC_VERSION}..." && \
-    VERSION_INFO=$(curl -fsSL "${API_URL}/versions/${MC_VERSION}") && \
-    LATEST_BUILD=$(echo "$VERSION_INFO" | jq -r '.builds[-1]') && \
-    if [ -z "$LATEST_BUILD" ] || [ "$LATEST_BUILD" = "null" ]; then \
-        echo "Error: Could not find builds for version ${MC_VERSION}"; \
+    API_URL="https://fill.papermc.io/v3/projects/paper" && \
+    UA="minecraft-server-docker-build (https://github.com/KevinTCoughlin/minecraft-server)" && \
+    echo "Fetching latest PaperMC build for Minecraft ${MC_VERSION}..." && \
+    BUILD_INFO=$(curl -fsSL -A "$UA" "${API_URL}/versions/${MC_VERSION}/builds/latest") && \
+    BUILD_ID=$(echo "$BUILD_INFO" | jq -r '.id') && \
+    DOWNLOAD_URL=$(echo "$BUILD_INFO" | jq -r '.downloads."server:default".url') && \
+    SHA256=$(echo "$BUILD_INFO" | jq -r '.downloads."server:default".checksums.sha256') && \
+    if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then \
+        echo "Error: Could not find a build for version ${MC_VERSION}"; \
         exit 1; \
     fi && \
-    echo "Latest build: ${LATEST_BUILD}" && \
-    BUILD_INFO=$(curl -fsSL "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}") && \
-    DOWNLOAD_NAME=$(echo "$BUILD_INFO" | jq -r '.downloads.application.name') && \
-    if [ -z "$DOWNLOAD_NAME" ] || [ "$DOWNLOAD_NAME" = "null" ]; then \
-        echo "Error: Could not determine download filename"; \
-        exit 1; \
-    fi && \
-    echo "Downloading ${DOWNLOAD_NAME}..." && \
-    curl -fsSL -o /tmp/paper.jar "${API_URL}/versions/${MC_VERSION}/builds/${LATEST_BUILD}/downloads/${DOWNLOAD_NAME}" && \
-    if [ ! -s /tmp/paper.jar ]; then \
-        echo "Error: Downloaded file is empty"; \
-        exit 1; \
-    fi && \
+    echo "Downloading Paper ${MC_VERSION} build ${BUILD_ID}..." && \
+    curl -fsSL -A "$UA" -o /tmp/paper.jar "$DOWNLOAD_URL" && \
+    echo "${SHA256}  /tmp/paper.jar" | sha256sum -c - && \
     echo "Download complete: $(du -h /tmp/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
@@ -89,7 +82,7 @@ RUN echo "eula=true" > /server/eula.txt && \
 USER minecraft
 
 # Expose ports
-EXPOSE 25565/tcp 25565/udp 25575/tcp
+EXPOSE 25565/tcp 25565/udp 25575/tcp 19132/udp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \

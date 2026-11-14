@@ -55,7 +55,18 @@ Requires Java 21+ (`brew install openjdk@21`)
 ./scripts/stop.sh           # graceful stop
 ```
 
-### Docker
+### Containers (just)
+
+```bash
+just image   # build docker/Dockerfile (Apple `container` on macOS, podman elsewhere)
+just run     # start detached; worlds on named volumes
+just logs    # follow logs
+just stop
+```
+
+See [docker/README.md](docker/README.md#apple-container-macos) for ports, volumes and overrides.
+
+### Docker Compose
 
 ```bash
 cd docker
@@ -125,7 +136,7 @@ MIN_RAM=2G          # Minimum RAM allocation
 MAX_RAM=4G          # Maximum RAM allocation
 
 # update-paper.sh
-MC_VERSION=1.21.4   # Minecraft version
+MC_VERSION=latest   # Minecraft version (default: latest)
 
 # stop.sh
 RCON_HOST=localhost
@@ -284,9 +295,6 @@ class MyPlugin : JavaPlugin() {
 # On remote host
 cd docker
 docker-compose up -d
-
-# With custom settings
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 ## Backups
