@@ -30,10 +30,10 @@ cd ..  # Go to repository root
 docker build -f docker/Dockerfile -t minecraft-server:latest .
 
 # Run the custom image
-docker run -d -p 25565:25565 -v minecraft-data:/server minecraft-server:latest
+docker run -d -p 25565:25565 -v minecraft-world:/server/parkour-spiral minecraft-server:latest
 ```
 
-**Important**: The Dockerfile must be built from the repository root as the build context, not from the `docker/` directory, because it needs access to `server/` and `scripts/` directories.
+**Important**: The Dockerfile must be built from the repository root as the build context, not from the `docker/` directory, because it copies config files from `server/`.
 
 ## Configuration
 
@@ -90,14 +90,16 @@ docker run --rm -v minecraft-data:/data -v $(pwd):/backup alpine tar xzf /backup
 
 ### Custom Dockerfile
 
-Mount volumes for persistence:
+Mount a volume on the world directory for persistence:
 
 ```bash
 docker run -d \
   -p 25565:25565 \
-  -v minecraft-data:/server \
+  -v minecraft-world:/server/parkour-spiral \
   minecraft-server:latest
 ```
+
+`parkour-spiral` is `level-name` in `server/server.properties`; since Minecraft 26.1 every dimension lives inside that one directory. Do not mount a volume over all of `/server`: it holds `paper.jar` and the configs baked into the image, and a volume would hide them (under Apple `container` the volume starts empty).
 
 ## Networking
 
@@ -110,7 +112,36 @@ RCON is disabled and not published by default.
 
 ## Health Checks
 
-Both configurations include health checks that verify the server is accepting connections.
+Both configurations include health checks that verify the server is accepting connections. Apple `container` ignores `HEALTHCHECK`.
+
+## Apple container (macOS)
+
+On macOS the root `justfile` drives Apple's [`container`](https://github.com/apple/container) CLI by default; on other systems it uses podman. Set `CONTAINER_ENGINE` to override. Run from the repository root:
+
+```bash
+container system start   # once per boot
+just image               # build docker/Dockerfile with context .
+just run                 # start detached as `minecraft-server`
+just logs                # follow logs; wait for "Done"
+just rcon list           # RCON from the host (needs python3)
+just shell               # shell in the container
+just stop                # stop and remove the container; the world volume is kept
+```
+
+What `just run` does, and why:
+
+- **Resources**: `container` gives 1 GB of memory by default, too little for `-Xmx4G`. The recipe passes `--memory 5G --cpus 2`; override with `MC_MEMORY` and `MC_CPUS`. It uses the long flags because podman reads `-c` as CPU shares.
+- **Ports**: publishes 25565/tcp+udp and 19132/udp. Change the host ports with `MC_PORT`, `BEDROCK_PORT` and `RCON_PORT`, for example to run next to another server:
+  ```bash
+  export MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133
+  just run
+  just rcon list
+  ```
+- **RCON**: the image ships with RCON off. `just run` turns it on for this container only and publishes it on host `127.0.0.1` alone. It uses a random password unless you set `RCON_PASSWORD` (letters, digits, `_` and `-` only). `just rcon` reads the password back from the container.
+- **World volume**: the world lives on the named volume `minecraft-server-world`; set `MC_VOLUME` to use another. `container` needs the volume created first and does not seed it from the image. A new volume is an empty ext4 filesystem with a root-owned `lost+found`, which stops Paper from starting. The recipe creates the volume and gives its top level to the `minecraft` user (uid 1000).
+- **No compose, restart policy or health checks**: `docker-compose.yml` does not apply under `container`. After a reboot, run `just run` again; the world is still on the volume.
+
+To delete the world, run `container volume rm minecraft-server-world`.
 
 ## Management
 

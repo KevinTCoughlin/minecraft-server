@@ -60,7 +60,18 @@ The management scripts support the Bash and BSD userland included with macOS;
 ./scripts/stop.sh           # graceful stop
 ```
 
-### Docker
+### Containers (just)
+
+```bash
+just image   # build docker/Dockerfile (Apple `container` on macOS, podman elsewhere)
+just run     # start detached; the world is on a named volume
+just logs    # follow logs
+just stop
+```
+
+See [docker/README.md](docker/README.md#apple-container-macos) for ports, RCON, volumes and overrides.
+
+### Docker Compose
 
 ```bash
 cd docker
@@ -291,9 +302,6 @@ Paper 26.3 build 237 is the pinned server and plugin API. What that build change
 # On remote host
 cd docker
 docker-compose up -d
-
-# With custom settings
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 ## Backups
