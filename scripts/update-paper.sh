@@ -181,7 +181,7 @@ if [[ -f ".paper-version" ]]; then
 fi
 
 # The version file can move ahead of a gitignored JAR (for example an old
-# 1.21.11 paper.jar left in place after .paper-version becomes 26.3-237).
+# 1.21.11 paper.jar left in place after .paper-version becomes 26.3-258).
 # Skip the download only when the bytes match the published checksum.
 if [[ "$CURRENT_BUILD" == "${MC_VERSION}-${LATEST_BUILD}" && -s "${SERVER_DIR}/${JAR_NAME}" ]] &&
    verify_sha256 "$DOWNLOAD_SHA256" "${SERVER_DIR}/${JAR_NAME}"; then

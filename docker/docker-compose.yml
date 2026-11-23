@@ -14,9 +14,9 @@ services:
     environment:
       # Server type
       TYPE: "PAPER"
-      # Paper 26.3 build 237 includes the fire-damage, potion-splash, and respawn-radius fixes.
+      # Paper 26.3 build 258 includes the fire-damage, potion-splash, and respawn-radius fixes.
       VERSION: "26.3"
-      PAPER_BUILD: "237"
+      PAPER_BUILD: "258"
       EULA: "TRUE"
 
       # Memory settings with experimental JVM features

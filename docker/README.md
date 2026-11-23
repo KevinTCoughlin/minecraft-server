@@ -42,7 +42,7 @@ docker run -d -p 25565:25565 -v minecraft-world:/server/parkour-spiral minecraft
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: `MEMORY` environment variable (default: 4G)
-- **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 237)
+- **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 258)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
 
@@ -58,13 +58,13 @@ The custom Dockerfile:
 Build arguments:
 
 - `MC_VERSION` - Minecraft version to download (default: 26.3)
-- `PAPER_BUILD` - Paper build number (default: 237)
+- `PAPER_BUILD` - Paper build number (default: 258)
 
 Example:
 
 ```bash
 docker build -f docker/Dockerfile -t minecraft-server:26.3 \
-  --build-arg MC_VERSION=26.3 --build-arg PAPER_BUILD=237 .
+  --build-arg MC_VERSION=26.3 --build-arg PAPER_BUILD=258 .
 ```
 
 ## Eclipse Temurin

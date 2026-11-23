@@ -80,7 +80,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             MC_VERSION=26.3
-            PAPER_BUILD=237
+            PAPER_BUILD=258
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.36.0
@@ -135,7 +135,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             MC_VERSION=26.3
-            PAPER_BUILD=237
+            PAPER_BUILD=258
 
       - name: Generate SBOM
         if: github.event_name != 'pull_request'

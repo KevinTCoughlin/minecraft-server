@@ -25,7 +25,7 @@ The Fart Plugin has been successfully implemented with all required features!
 
 3. **Code Quality**
    - ✅ Follows existing plugin patterns (example-plugin, blackjack-plugin)
-   - ✅ Uses Kotlin and PaperMC API 26.3 build 237
+   - ✅ Uses Kotlin and PaperMC API 26.3 build 258
    - ✅ Passed code review
    - ✅ Security checked (no issues found)
    - ✅ Clean, readable code with comments
@@ -119,7 +119,7 @@ Tell your son the fart command is ready! Once the plugin is built and deployed, 
 ## Technical Details
 
 - **Language:** Kotlin 2.1.0
-- **API:** PaperMC 26.3.build.237-stable
+- **API:** PaperMC 26.3.build.258-stable
 - **JVM Target:** Java 25
 - **Build Tool:** Gradle 9.8 (wrapper)
 - **Shadow Plugin:** 8.1.1 (for JAR packaging)
