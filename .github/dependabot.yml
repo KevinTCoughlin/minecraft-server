@@ -1,4 +1,11 @@
 version: 2
+registries:
+  # LiteCommands (dev.rollczi) is not on Maven Central. Dependabot's Gradle
+  # job fails with private_source_authentication_failure unless this public
+  # registry is declared. No credentials: the repository allows anonymous reads.
+  panda-lang-releases:
+    type: maven-repository
+    url: https://repo.panda-lang.org/releases
 updates:
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -19,6 +26,8 @@ updates:
   # Gradle dependencies
   - package-ecosystem: "gradle"
     directory: "/"
+    registries:
+      - panda-lang-releases
     schedule:
       interval: "weekly"
       day: "monday"

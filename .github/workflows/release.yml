@@ -59,47 +59,64 @@ jobs:
           test "$(find release -maxdepth 1 -name '*.jar' | wc -l)" -eq 3
           (cd release && sha256sum *.jar > checksums.txt)
 
+      # GitHub immutable releases reject asset uploads after publish. v1.0.1
+      # (run 43617024844) created the release, uploaded the jars, then failed
+      # on checksums.txt. Attach every file while the release is still a draft.
       - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
-          name: Release v${{ steps.version.outputs.VERSION }}
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.VERSION, 'alpha') || contains(steps.version.outputs.VERSION, 'beta') || contains(steps.version.outputs.VERSION, 'rc') }}
-          generate_release_notes: true
-          files: |
-            release/*.jar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="v${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          NOTES="$(mktemp)"
+          cat > "$NOTES" << EOF
+          ## Minecraft Server Plugins v${VERSION}
+
+          ### Included Plugins
+          - **Blackjack Plugin** - Fully-featured Blackjack minigame
+          - **Example Plugin** - Sample plugin for development reference
+          - **Fart Plugin** - Fun sound effect plugin
+
+          ### Installation
+          1. Download the desired plugin JAR(s) below
+          2. Place in your server's \`plugins/\` folder
+          3. Restart your server
+
+          ### Blackjack Plugin Commands
+          - \`/bj\` or \`/bj start\` - Start a new game
+          - \`/bj hit\` - Draw another card
+          - \`/bj stand\` - End your turn
+          - \`/bj stats\` - View your statistics
+
+          ### System Requirements
+          - **PaperMC** 26.3 build 258
+          - **Java 25** (Eclipse Temurin). Java 21 is not supported on this release.
+          - Minecraft 1.21.x servers should stay on the previous release.
+          - **Server Memory** 2GB minimum, 4GB recommended
+
+          ### Verification
+          Verify downloads using the included \`checksums.txt\` file:
+          \`\`\`bash
+          sha256sum -c checksums.txt
+          \`\`\`
+
+          ---
+          Built with Eclipse Temurin OpenJDK 25
+          EOF
+          PRE=()
+          case "$VERSION" in
+            *alpha*|*beta*|*rc*) PRE=(--prerelease) ;;
+          esac
+          gh release create "$TAG" \
+            --draft \
+            --title "Release v${VERSION}" \
+            --notes-file "$NOTES" \
+            "${PRE[@]}" \
+            release/*.jar \
             release/checksums.txt
-          body: |
-            ## Minecraft Server Plugins v${{ steps.version.outputs.VERSION }}
-
-            ### Included Plugins
-            - **Blackjack Plugin** - Fully-featured Blackjack minigame
-            - **Example Plugin** - Sample plugin for development reference
-            - **Fart Plugin** - Fun sound effect plugin
-
-            ### Installation
-            1. Download the desired plugin JAR(s) below
-            2. Place in your server's `plugins/` folder
-            3. Restart your server
-
-            ### Blackjack Plugin Commands
-            - `/bj` or `/bj start` - Start a new game
-            - `/bj hit` - Draw another card
-            - `/bj stand` - End your turn
-            - `/bj stats` - View your statistics
-
-            ### System Requirements
-            - **PaperMC** 26.3 build 237
-            - **Java 25** (Eclipse Temurin). Java 21 is not supported on this release.
-            - Minecraft 1.21.x servers should stay on the previous release.
-            - **Server Memory** 2GB minimum, 4GB recommended
-
-            ### Verification
-            Verify downloads using the included `checksums.txt` file:
-            ```bash
-            sha256sum -c checksums.txt
-            ```
-
-            ---
-            Built with Eclipse Temurin OpenJDK 25
+          gh release edit "$TAG" --draft=false

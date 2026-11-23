@@ -1,8 +1,8 @@
-# Paper 26.3 build 237 and a future 26.4 login change
+# Paper 26.3 build 258 and a future 26.4 login change
 
-This server runs **Paper 26.3 build 237** (published 2026-11-01, channel `STABLE`) on **Java 25**. Build 237 is the newest 26.3 build as of 2026-11-02 and includes the three fixes below. Its own commit is "Sync latest Moonrise changes (#14452)" and does not touch damage, potions, or respawn. Minecraft 26.4 is preview-only: Paper's Fill API has no 26.4 version, and this repository does not migrate to it.
+This server runs **Paper 26.3 build 258** (published 2026-11-22, channel `STABLE`, SHA-256 `c5df5fb9f6155e48380c67c6e2b2dc2581b7db1a4b665d2c3818057b7efb6692`) on **Java 25**. Build 258 includes the three fixes below. Its own commit is "Add PlayerAdvancementCriterionRevokeEvent and PlayerAdvancementRevokeEvent (#14445)" and does not touch damage, potions, or respawn. Minecraft 26.4 is preview-only: Paper's Fill API has no 26.4 version, and this repository does not migrate to it.
 
-Checked against `https://fill.papermc.io/v3/projects/paper/versions/26.3/builds` on 2026-11-02.
+Checked against `https://fill.papermc.io/v3/projects/paper/versions/26.3/builds/258` on 2026-11-22.
 
 ## Upstream changes
 
@@ -12,7 +12,7 @@ Commit `2e549d6` ("Call EntityDamageByBlockEvent for fire damage", #12235), 2026
 
 Standing in fire now goes through `DamageSource.eventBlockDamager`, so the Bukkit event is `EntityDamageByBlockEvent` (cause `FIRE`, damager is the fire block). That event still extends `EntityDamageEvent`. The same commit removes the early `DamageTypes.IN_FIRE` → `DamageCause.FIRE` mapping that used to run before the block-damager branch. Burning damage (`FIRE_TICK`) is unchanged and is not a block event.
 
-`DamageCause.DRAGON_BREATH` was **not** deprecated by this commit. On current Paper `main` it is already `@Deprecated(since = "1.21.5")`, with javadoc that vanilla reports dragon breath as `ENTITY_ATTACK` unless a command or plugin forces the old cause. `CraftEventFactory` still assigns `DRAGON_BREATH` when the damage type is dragon breath and an entity damager is present. No commit in 26.3 builds 228–237 mentions dragon breath.
+`DamageCause.DRAGON_BREATH` was **not** deprecated by this commit. On current Paper `main` it is already `@Deprecated(since = "1.21.5")`, with javadoc that vanilla reports dragon breath as `ENTITY_ATTACK` unless a command or plugin forces the old cause. `CraftEventFactory` still assigns `DRAGON_BREATH` when the damage type is dragon breath and an entity damager is present. No commit in the builds checked on 2026-11-02 (228–237) mentions dragon breath, and build 258's own commit does not either.
 
 ### Build 229 — a cancelled splash no longer puts fires out
 
@@ -39,7 +39,7 @@ DeathBan Pro is named in `CLAUDE.md` and has no source here, so it was not audit
 
 ## Config migrated by booting 26.3.237
 
-A first boot of build 237 rewrote three files in place. `_version` stayed 31. The values below are what that boot wrote; behavior that was already set is unchanged.
+The running pin is build 258. A first boot of build 237 rewrote three files in place. `_version` stayed 31. The values below are what that boot wrote; behavior that was already set is unchanged.
 
 - `server/config/paper-global.yml`: `commands.time-command-affects-all-worlds` moved to `time.affects-all-worlds` (still false). Dropped `logging.deobfuscate-stacktraces`, `misc.fix-far-end-terrain-generation`, `misc.send-full-pos-for-item-entities`, and `unsupported-settings.compression-format`. Added `misc.catchup-ticks`, `misc.max-tracking-combat-entries`, `unsupported-settings.oversized-item-component-sanitizer`, and `update-checker.enabled`.
 - `server/config/paper-world-defaults.yml`: new chunk-unload, tree-snow, and command-block time-format keys, plus `unsupported-settings.ticking`.
@@ -68,8 +68,8 @@ Packets after the acknowledgement use the new settings. The old immediate switch
 
 | Piece | In this repo | 26.3 target | 26.4 note |
 | --- | --- | --- | --- |
-| Paper | Docker, `server/.paper-version`, Gradle `paper-api` `26.3.build.237-stable` | 26.3 build 237 | No 26.4 Paper build exists. Stay here. |
-| First-party plugins | Bukkit/Paper API and LiteCommands 3.11.0 (commands only) | Compile against 26.3 build 237 | No NMS (`net.minecraft`), ProtocolLib, PacketEvents, ViaVersion, or Netty pipeline code. |
+| Paper | Docker, `server/.paper-version`, Gradle `paper-api` `26.3.build.258-stable` | 26.3 build 258 | No 26.4 Paper build exists. Stay here. |
+| First-party plugins | Bukkit/Paper API and LiteCommands 3.11.0 (commands only) | Compile against 26.3 build 258 | No NMS (`net.minecraft`), ProtocolLib, PacketEvents, ViaVersion, or Netty pipeline code. |
 | Velocity | `server/config/paper-global.yml` has `proxies.velocity.enabled: false`. The Compose service is commented out. | Not deployed. Released line is **4.3.1** (2026-10-27), a packet-validation fix, not a protocol bump. | [Velocity#1913](https://github.com/PaperMC/Velocity/pull/1913) (draft, open) is the 26.4 work. A `Minecraft 26.4-snapshot-5` commit landed on 2026-10-23 and was **reverted the same day** (`77274a8`). 4.3.1 does not speak `apply_options` / `options_applied`. Do not enable the proxy on a 26.4 server until that work is in a release. |
 | BungeeCord | `server/spigot.yml` `settings.bungeecord: false` | Not deployed | Same login change. No BungeeCord jar is pinned here. |
 | Geyser-Spigot | Not vendored (`server/plugins/` is empty in git). `CLAUDE.md` expects it. | **2.12.1 build 1280** (Geyser download API, 2026-10-31) for Java 26.3 | Needs a build whose notes name the 26.4 acknowledgement packets before Bedrock players can join a 26.4 backend. |
@@ -84,12 +84,12 @@ Packets after the acknowledgement use the new settings. The old immediate switch
 
 ## Manual checklist
 
-Live server only. Run against Paper 26.3 build 237 with the three first-party jars, then again with Geyser 2.12.1-b1280, Floodgate 2.2.5-b141, WorldEdit 7.4.6, and Multiverse-Core 5.8.2 if those are deployed.
+Live server only. Run against Paper 26.3 build 258 with the three first-party jars, then again with Geyser 2.12.1-b1280, Floodgate 2.2.5-b141, WorldEdit 7.4.6, and Multiverse-Core 5.8.2 if those are deployed.
 
-1. **Boot.** `./setup.sh` then `./scripts/start.sh` on Java 25. Log contains `Done` and `26.3-237`. No crash report. `Done` alone is not a pass: an older jar and a server still passing `-XX:+ZGenerational` both reach `Done`.
-   - **Stale jar.** Leave `.paper-version` at `26.3-237`, replace `paper.jar` with any other file, and run `./scripts/update-paper.sh`. It must refuse to stay on that file and download build 237. A script that prints "Already at latest version" here is still broken.
+1. **Boot.** `./setup.sh` then `./scripts/start.sh` on Java 25. Log contains `Done` and `26.3-258`. No crash report. `Done` alone is not a pass: an older jar and a server still passing `-XX:+ZGenerational` both reach `Done`.
+   - **Stale jar.** Leave `.paper-version` at `26.3-258`, replace `paper.jar` with any other file, and run `./scripts/update-paper.sh`. It must refuse to stay on that file and download build 258. A script that prints "Already at latest version" here is still broken.
    - **ZGC.** Stop the server, then `GC_TYPE=zgc ./scripts/start.sh`. The process command line includes `-XX:+UseZGC` and does not include `ZGenerational`. The log does not contain `Ignoring option ZGenerational`.
-   - **Docker.** `docker compose up` from `docker/` with `VERSION=26.3` and `PAPER_BUILD=237`, and the health check goes green.
+   - **Docker.** `docker compose up` from `docker/` with `VERSION=26.3` and `PAPER_BUILD=258`, and the health check goes green.
 2. **Direct fire, once.** Survival player, no resistance or fire protection, standing in fire until death. One death message. If a death-ban or parkour death counter is installed, it increments by one. An operator in creative, and a player with vanilla invulnerability, takes no damage.
 3. **Burn tick.** Light a player, then leave the fire block. Further damage is `FIRE_TICK` only. Still one death when health reaches zero.
 4. **Dragon breath.** Stand in dragon's breath. Confirm the server does not require a plugin to translate `DRAGON_BREATH`; no first-party plugin branches on that cause.

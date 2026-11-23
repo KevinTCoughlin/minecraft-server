@@ -259,7 +259,7 @@ class MyPlugin : JavaPlugin() {
 - **bukkit.yml**: Bukkit-level settings
 - **spigot.yml**: Spigot performance tuning
 
-Paper 26.3 build 237 is the pinned server and plugin API. What that build changes, which plugins were checked, and what to retest before a future 26.4 move are in [Paper 26.4 prep](docs/paper-26.4-prep.md).
+Paper 26.3 build 258 is the pinned server and plugin API. What that build changes, which plugins were checked, and what to retest before a future 26.4 move are in [Paper 26.4 prep](docs/paper-26.4-prep.md).
 
 ### Optional RCON (Disabled by Default)
 

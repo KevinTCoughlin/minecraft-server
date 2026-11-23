@@ -16,9 +16,9 @@ WORKDIR /download
 
 # Download Paper directly with error handling
 # Pin the newest Paper 26.3 build that contains the audited 228/229/233 fixes.
-# Build 237 (2026-11-01) is that build. Override PAPER_BUILD only to move forward.
+# Build 258 (2026-11-22) is that build. Override PAPER_BUILD only to move forward.
 ARG MC_VERSION=26.3
-ARG PAPER_BUILD=237
+ARG PAPER_BUILD=258
 RUN set -e && \
     API_URL="https://fill.papermc.io/v3" && \
     API_ORIGIN="https://fill.papermc.io" && \
