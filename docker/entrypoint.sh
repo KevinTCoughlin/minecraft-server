@@ -115,8 +115,8 @@ cleanup_holder() {
     fi
 }
 
-# Invoked from the SIGTERM/SIGINT trap.
-# shellcheck disable=SC2317
+# Invoked from the SIGTERM/SIGINT trap. Shellcheck does not see that use.
+# shellcheck disable=SC2317,SC2329
 request_stop() {
     STOP_REQUESTED=1
     if [[ -n "$JAVA_PID" ]] && kill -0 "$JAVA_PID" 2>/dev/null; then

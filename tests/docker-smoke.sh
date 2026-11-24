@@ -154,8 +154,10 @@ if [[ ! -f "$DATA_DIR/world/level.dat" ]]; then
 fi
 
 echo "Docker smoke test passed"
-# Keep the data dir when the caller set SMOKE_DATA_DIR; otherwise it is a temp
-# directory and the trap only removes the container. Remove our temp dir.
+# Keep the data dir when the caller set SMOKE_DATA_DIR. Otherwise remove it.
+# The server writes as uid 1000, which the CI runner cannot delete without root.
 if [[ -z "${SMOKE_DATA_DIR:-}" ]]; then
-    rm -rf "$DATA_DIR"
+    if ! rm -rf "$DATA_DIR" 2>/dev/null; then
+        sudo rm -rf "$DATA_DIR"
+    fi
 fi
