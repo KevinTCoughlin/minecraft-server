@@ -21,10 +21,11 @@ class HelloCommand(private val plugin: ExamplePlugin) : CommandExecutor {
             "Hello, World!"
         }
 
-        // Get prefix from config
+        // Get prefix from config. Ampersand codes stay literal, matching the
+        // previous string message.
         val defaultPrefix = "[Example]"
         val prefix = plugin.config.getString("message-prefix", defaultPrefix) ?: defaultPrefix
-        sender.sendMessage("$prefix $message")
+        sender.sendMessage(helloMessage(prefix, message))
 
         return true
     }

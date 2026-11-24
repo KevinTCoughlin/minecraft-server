@@ -14,10 +14,9 @@ class PingCommand : CommandExecutor {
         args: Array<out String>
     ): Boolean {
         if (sender is Player) {
-            val ping = sender.ping
-            sender.sendMessage("Pong! Your ping is ${ping}ms")
+            sender.sendMessage(pingMessage(sender.ping))
         } else {
-            sender.sendMessage("Pong! (Console has no ping)")
+            sender.sendMessage(consolePingMessage())
         }
         return true
     }

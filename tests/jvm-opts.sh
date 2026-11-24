@@ -42,6 +42,7 @@ assert_contains "$container" "-XX:+UnlockExperimentalVMOptions"
 assert_absent "$container" "-Xmx"
 assert_absent "$container" "-Xms"
 assert_absent "$container" "ZGenerational"
+assert_absent "$container" "UseCompactObjectHeaders"
 
 custom=$(
     HEAP_DUMP_PATH=/var/dumps MEMORY_MODE=container \
@@ -64,6 +65,7 @@ assert_contains "$fixed" "-XX:HeapDumpPath=/tmp/dumps"
 assert_absent "$fixed" "-XX:+UseG1GC"
 assert_absent "$fixed" "MaxRAMPercentage"
 assert_absent "$fixed" "ZGenerational"
+assert_absent "$fixed" "UseCompactObjectHeaders"
 assert_absent "$fixed" "G1NewSizePercent"
 
 if HEAP_DUMP_PATH=/dumps GC_TYPE=shenandoah "$OPTS" >/dev/null 2>&1; then

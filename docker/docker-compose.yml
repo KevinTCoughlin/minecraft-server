@@ -109,6 +109,10 @@ services:
         -Dusing.aikars.flags=https://mcflags.emc.gs
         -Daikars.new.flags=true
 
+      # server.properties is mounted read-only below, so itzg must not rewrite
+      # it. The mounted file is the source of truth.
+      OVERRIDE_SERVER_PROPERTIES: "false"
+
       # Server settings
       SERVER_NAME: "My PaperMC Server"
       MOTD: "A PaperMC Server - Powered by Docker"

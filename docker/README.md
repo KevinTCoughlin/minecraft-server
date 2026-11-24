@@ -56,6 +56,7 @@ Build plugins into the image first if you want them baked in: `./gradlew deployT
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: container limit `mem_limit` (default 6G). The heap is 75% of that limit (`INIT_MEMORY` / `MAX_MEMORY`), not a fixed `-Xmx`
+- **server.properties**: mounted read-only. `OVERRIDE_SERVER_PROPERTIES` is false, so itzg leaves that file alone and the mounted copy wins over the `MOTD` / `MODE` environment variables
 - **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 258)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed

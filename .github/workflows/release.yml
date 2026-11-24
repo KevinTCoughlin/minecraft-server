@@ -35,7 +35,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
-          gradle-home-cache-cleanup: true
+          # Replaces gradle-home-cache-cleanup: true, which cleaned the cache
+          # even when the build failed.
+          cache-cleanup: always
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
@@ -99,6 +101,7 @@ jobs:
           - **Java 25** (Eclipse Temurin). Java 21 is not supported on this release.
           - Minecraft 1.21.x servers should stay on the previous release.
           - **Server Memory** 2GB minimum, 4GB recommended
+          - **Container memory limit** required. The heap is 75% of the cgroup limit, and the process refuses to start when the limit is unlimited. This is a breaking change from 1.x images, which used a fixed heap and could start without `--memory` / `mem_limit`. The Compose file sets 6G. Host starts still use `MIN_RAM` and `MAX_RAM`.
 
           ### Verification
           Verify downloads using the included \`checksums.txt\` file:

@@ -23,24 +23,21 @@ class FartCommand : CommandExecutor {
                 1.0f,  // volume
                 0.5f   // pitch (lower pitch makes it sound more like a fart)
             )
-            
-            // Send a message to the player
-            sender.sendMessage("§6💨 *Fart noise* 💨")
-            
-            // Optionally broadcast to nearby players
+
+            sender.sendMessage(fartSelfMessage())
+
             val nearbyPlayers = sender.world.getNearbyEntities(
-                sender.location, 
-                20.0, 
-                20.0, 
+                sender.location,
+                20.0,
+                20.0,
                 20.0
             ).filterIsInstance<Player>().filter { it != sender }
-            
+
             nearbyPlayers.forEach { nearbyPlayer ->
-                nearbyPlayer.sendMessage("§e${sender.name} farted! 💨")
+                nearbyPlayer.sendMessage(fartNearbyMessage(sender.name))
             }
-            
         } else {
-            sender.sendMessage("Only players can use this command!")
+            sender.sendMessage(fartPlayersOnlyMessage())
         }
         return true
     }
