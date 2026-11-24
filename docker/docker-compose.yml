@@ -18,12 +18,24 @@ services:
           if [ -f "$1" ] && [ ! -e "$2" ]; then
             cp "$1" "$2"
           fi
+          # The repo files are often mode 0444. itzg rewrites server.properties
+          # (to turn RCON on for the stop command) and Paper rewrites the yml.
+          if [ -f "$2" ]; then
+            chmod u+rw "$2"
+          fi
         }
         copy /mnt/config/server.properties /data/server.properties
         copy /mnt/config/bukkit.yml /data/bukkit.yml
         copy /mnt/config/spigot.yml /data/spigot.yml
         copy /mnt/config/paper-global.yml /data/config/paper-global.yml
         copy /mnt/config/paper-world-defaults.yml /data/config/paper-world-defaults.yml
+        # Always, not only when /data is still root-owned. A volume whose root
+        # is already uid 1000 would otherwise keep root-owned copies, and
+        # itzg (uid 1000) cannot rewrite server.properties.
+        chown 1000:1000 \
+          /data /data/config \
+          /data/server.properties /data/bukkit.yml /data/spigot.yml \
+          /data/config/paper-global.yml /data/config/paper-world-defaults.yml
         if [ "$(stat -c %u /data)" != 1000 ]; then
           chown -R 1000:1000 /data
         fi

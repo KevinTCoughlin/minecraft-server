@@ -68,6 +68,11 @@ while [[ "$elapsed" -lt "$STARTUP_TIMEOUT" ]]; do
         exit 1
     fi
     save_logs
+    if grep -q 'Failed to update server.properties' "$LOG_FILE"; then
+        cat "$LOG_FILE" >&2 || true
+        echo "itzg could not write server.properties" >&2
+        exit 1
+    fi
     if grep -q 'Done (' "$LOG_FILE"; then
         ready=1
         break
