@@ -29,9 +29,23 @@ For advanced customization, build from the Dockerfile:
 cd ..  # Go to repository root
 docker build -f docker/Dockerfile -t minecraft-server:latest .
 
-# Run the custom image
-docker run -d -p 25565:25565 -v minecraft-world:/server/parkour-spiral minecraft-server:latest
+# Run the custom image. The heap is 75% of --memory. Do not replace the
+# command: the entrypoint turns SIGTERM into the console "stop" command.
+docker run -d \
+  --name minecraft-server \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --memory 5g --cpus 2 \
+  --stop-timeout 90 \
+  --tmpfs /tmp:rw,nosuid,size=256m \
+  -p 25565:25565 \
+  -v minecraft-server-data:/data \
+  -v minecraft-server-world:/data/parkour-spiral \
+  minecraft-server:latest
 ```
+
+Build plugins into the image first if you want them baked in: `./gradlew deployToServer` copies the jars to `server/plugins/`, and the image copies those into `/data/plugins` on startup.
 
 **Important**: The Dockerfile must be built from the repository root as the build context, not from the `docker/` directory, because it copies config files from `server/`.
 
@@ -41,7 +55,7 @@ docker run -d -p 25565:25565 -v minecraft-world:/server/parkour-spiral minecraft
 
 Edit `docker-compose.yml` to customize:
 
-- **Memory**: `MEMORY` environment variable (default: 4G)
+- **Memory**: container limit `mem_limit` (default 6G). The heap is 75% of that limit (`INIT_MEMORY` / `MAX_MEMORY`), not a fixed `-Xmx`
 - **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 258)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
@@ -52,7 +66,7 @@ The custom Dockerfile:
 
 1. **Downloads Paper** - Fetches the pinned Paper 26.3 build from Paper's Fill v3 API
 2. **Multi-stage build** - Smaller final image
-3. **Security hardened** - Non-root user, minimal base image
+3. **Security hardened** - Non-root user, read-only root, dropped capabilities, digest-pinned base image
 4. **Eclipse Temurin** - Uses Eclipse Foundation's OpenJDK
 
 Build arguments:
@@ -90,16 +104,20 @@ docker run --rm -v minecraft-data:/data -v $(pwd):/backup alpine tar xzf /backup
 
 ### Custom Dockerfile
 
-Mount a volume on the world directory for persistence:
+The server directory is `/data` (configs, logs, plugins, heap dumps). The world is `/data/parkour-spiral` because that is `level-name` in `server/server.properties`; since Minecraft 26.1 every dimension lives inside that one directory. Mount the world volume at `/data/parkour-spiral` and the rest of the server state at `/data`. `paper.jar` lives in `/opt/minecraft`, so the data volume does not hide it.
 
 ```bash
 docker run -d \
+  --read-only \
+  --tmpfs /tmp:rw,nosuid,size=256m \
+  --memory 5g \
   -p 25565:25565 \
-  -v minecraft-world:/server/parkour-spiral \
+  -v minecraft-server-data:/data \
+  -v minecraft-server-world:/data/parkour-spiral \
   minecraft-server:latest
 ```
 
-`parkour-spiral` is `level-name` in `server/server.properties`; since Minecraft 26.1 every dimension lives inside that one directory. Do not mount a volume over all of `/server`: it holds `paper.jar` and the configs baked into the image, and a volume would hide them (under Apple `container` the volume starts empty).
+A read-only root needs the `/data` volume and a writable `/tmp`. Without a memory limit the container refuses to start, because the heap is a percentage of that limit.
 
 ## Networking
 
@@ -130,7 +148,7 @@ just stop                # stop and remove the container; the world volume is ke
 
 What `just run` does, and why:
 
-- **Resources**: `container` gives 1 GB of memory by default, too little for `-Xmx4G`. The recipe passes `--memory 5G --cpus 2`; override with `MC_MEMORY` and `MC_CPUS`. It uses the long flags because podman reads `-c` as CPU shares.
+- **Resources**: `container` gives 1 GB of memory by default, too little for a Paper heap. The recipe passes `--memory 5G --cpus 2`; the heap is 75% of that limit. Override with `MC_MEMORY` and `MC_CPUS`. It uses the long flags because podman reads `-c` as CPU shares.
 - **Ports**: publishes 25565/tcp+udp and 19132/udp. Change the host ports with `MC_PORT`, `BEDROCK_PORT` and `RCON_PORT`, for example to run next to another server:
   ```bash
   export MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133
@@ -138,10 +156,11 @@ What `just run` does, and why:
   just rcon list
   ```
 - **RCON**: the image ships with RCON off. `just run` turns it on for this container only and publishes it on host `127.0.0.1` alone. It uses a random password unless you set `RCON_PASSWORD` (letters, digits, `_` and `-` only). `just rcon` reads the password back from the container.
-- **World volume**: the world lives on the named volume `minecraft-server-world`; set `MC_VOLUME` to use another. `container` needs the volume created first and does not seed it from the image. A new volume is an empty ext4 filesystem with a root-owned `lost+found`, which stops Paper from starting. The recipe creates the volume and gives its top level to the `minecraft` user (uid 1000).
-- **No compose, restart policy or health checks**: `docker-compose.yml` does not apply under `container`. After a reboot, run `just run` again; the world is still on the volume.
+- **Volumes**: the world stays on `minecraft-server-world`, mounted at `/data/parkour-spiral`, so a volume created before the `/data` layout still has `level.dat` at the world root. Configs, logs, plugins, and heap dumps are on `minecraft-server-data` (`MC_DATA_VOLUME`). `container` needs both volumes created first and does not seed them from the image. A new volume is an empty ext4 filesystem with a root-owned `lost+found`. The recipe gives the top level of each volume to the `minecraft` user (uid 1000).
+- **Read-only root**: podman runs the container with `--read-only`, `--cap-drop=ALL`, `no-new-privileges`, a tmpfs on `/tmp`, and a 90s stop timeout. Apple `container` does not take those flags; the image still runs as uid 1000 and the entrypoint still handles SIGTERM.
+- **No compose, restart policy or health checks**: `docker-compose.yml` does not apply under `container`. After a reboot, run `just run` again; the world is still on the volume. The image `HEALTHCHECK` is ignored by Apple `container`.
 
-To delete the world, run `container volume rm minecraft-server-world`.
+To delete the world, run `container volume rm minecraft-server-world`. Configs and logs are on `minecraft-server-data`.
 
 ## Management
 

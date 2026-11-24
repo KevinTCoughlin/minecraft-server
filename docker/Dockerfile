@@ -1,8 +1,9 @@
-# Multi-stage Custom PaperMC Dockerfile with security hardening
-# Built on Eclipse Temurin (Eclipse Foundation's OpenJDK)
+# Multi-stage PaperMC image. The base is pinned by digest so a moved tag
+# cannot change what CI and production build. Both stages use the same image.
+# eclipse-temurin:25-jre-alpine
 
 # Stage 1: Download and prepare Paper
-FROM eclipse-temurin:25-jre-alpine AS downloader
+FROM eclipse-temurin:25-jre-alpine@sha256:69c2a26e9894016e274c880fa542956d005b3755f84db765145185e87405bd89 AS downloader
 
 LABEL description="Custom PaperMC Minecraft Server - Builder Stage"
 
@@ -53,90 +54,64 @@ RUN set -e && \
     echo "Download complete: $(du -h /download/paper.jar | cut -f1)"
 
 # Stage 2: Runtime
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:25-jre-alpine@sha256:69c2a26e9894016e274c880fa542956d005b3755f84db765145185e87405bd89
 
 LABEL org.opencontainers.image.authors="KevinTCoughlin"
 LABEL org.opencontainers.image.source="https://github.com/KevinTCoughlin/minecraft-server"
 LABEL org.opencontainers.image.description="PaperMC server built on Eclipse Foundation's OpenJDK"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Security: Create non-root user
+# Security: non-root user. Home is the writable data dir so Java does not
+# need to create files under a read-only root.
 RUN addgroup -g 1000 -S minecraft && \
-    adduser -u 1000 -S minecraft -G minecraft
+    adduser -u 1000 -S -h /data -G minecraft minecraft
 
-# Install runtime utilities (including busybox-extras for nc in healthcheck).
+# Runtime utilities. curl and jq are only needed to download Paper.
 # `apk upgrade` pulls Alpine security fixes the Temurin base image has not
 # picked up yet (e.g. libexpat 2.10.0-r0 for CVE-2026-113351/117610/118370).
+# busybox-extras provides nc for the healthcheck. tini forwards SIGTERM to
+# the entrypoint, which turns it into the console "stop" command.
 RUN apk upgrade --no-cache && \
     apk add --no-cache \
     bash \
-    curl \
-    jq \
     tzdata \
     tini \
     busybox-extras && \
     rm -rf /var/cache/apk/*
 
-# Set timezone
-ENV TZ=UTC
+ENV TZ=UTC \
+    GC_TYPE=g1gc \
+    MEMORY_MODE=container \
+    MAX_RAM_PERCENTAGE=75.0 \
+    HEAP_DUMP_PATH=/data/dumps
 
-# Create directories with proper permissions
-RUN mkdir -p /server/plugins /server/config /server/logs && \
-    chown -R minecraft:minecraft /server
+# Immutable server files live outside /data so a volume mounted there does
+# not hide the jar. Plugin jars in server/plugins (for example after
+# `./gradlew deployToServer`) are copied into the data volume on startup.
+RUN mkdir -p /opt/minecraft/defaults/config /opt/minecraft/plugins /data && \
+    chown -R minecraft:minecraft /opt/minecraft /data
 
-WORKDIR /server
+COPY --from=downloader --chown=minecraft:minecraft /download/paper.jar /opt/minecraft/paper.jar
+COPY --chown=minecraft:minecraft scripts/jvm-opts.sh /opt/minecraft/jvm-opts.sh
+COPY --chown=minecraft:minecraft docker/entrypoint.sh /opt/minecraft/entrypoint.sh
+COPY --chown=minecraft:minecraft server/server.properties /opt/minecraft/defaults/
+COPY --chown=minecraft:minecraft server/bukkit.yml /opt/minecraft/defaults/
+COPY --chown=minecraft:minecraft server/spigot.yml /opt/minecraft/defaults/
+COPY --chown=minecraft:minecraft server/config/ /opt/minecraft/defaults/config/
+COPY --chown=minecraft:minecraft server/plugins/ /opt/minecraft/plugins/
 
-# Copy Paper from downloader stage
-COPY --from=downloader --chown=minecraft:minecraft /download/paper.jar /server/paper.jar
+RUN chmod 755 /opt/minecraft/entrypoint.sh /opt/minecraft/jvm-opts.sh && \
+    chown -R minecraft:minecraft /opt/minecraft /data
 
-# Copy configuration files (build context should be repository root)
-COPY --chown=minecraft:minecraft server/server.properties /server/
-COPY --chown=minecraft:minecraft server/config/paper-global.yml /server/config/
-COPY --chown=minecraft:minecraft server/config/paper-world-defaults.yml /server/config/
-COPY --chown=minecraft:minecraft server/bukkit.yml /server/
-COPY --chown=minecraft:minecraft server/spigot.yml /server/
+WORKDIR /data
 
-# Accept EULA
-RUN echo "eula=true" > /server/eula.txt && \
-    chown minecraft:minecraft /server/eula.txt
-
-# Switch to non-root user
 USER minecraft
 
-# Expose ports
 EXPOSE 25565/tcp 25565/udp 19132/udp
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD nc -z localhost 25565 || exit 1
+# TCP connect, not ICMP, so the check works with every capability dropped.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=120s --retries=3 \
+    CMD nc -z 127.0.0.1 25565 || exit 1
 
-# JVM arguments - Optimized with Aikar's flags
-# Using Eclipse Temurin OpenJDK for best performance
-ENV JVM_OPTS="-Xms2G -Xmx4G \
-    -XX:+UseG1GC \
-    -XX:+ParallelRefProcEnabled \
-    -XX:MaxGCPauseMillis=200 \
-    -XX:+UnlockExperimentalVMOptions \
-    -XX:+DisableExplicitGC \
-    -XX:+AlwaysPreTouch \
-    -XX:G1NewSizePercent=30 \
-    -XX:G1MaxNewSizePercent=40 \
-    -XX:G1HeapRegionSize=8M \
-    -XX:G1ReservePercent=20 \
-    -XX:G1HeapWastePercent=5 \
-    -XX:G1MixedGCCountTarget=4 \
-    -XX:InitiatingHeapOccupancyPercent=15 \
-    -XX:G1MixedGCLiveThresholdPercent=90 \
-    -XX:G1RSetUpdatingPauseTimePercent=5 \
-    -XX:SurvivorRatio=32 \
-    -XX:+PerfDisableSharedMem \
-    -XX:MaxTenuringThreshold=1 \
-    -Dusing.aikars.flags=https://mcflags.emc.gs \
-    -Daikars.new.flags=true"
-
-# Use tini for proper signal handling
-ENTRYPOINT ["/sbin/tini", "--"]
 STOPSIGNAL SIGTERM
-
-# Start server
-CMD ["sh", "-c", "java $JVM_OPTS -jar paper.jar --nogui"]
+ENTRYPOINT ["/sbin/tini", "--", "/opt/minecraft/entrypoint.sh"]

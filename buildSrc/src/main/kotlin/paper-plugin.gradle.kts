@@ -17,6 +17,17 @@ kotlin {
     jvmToolchain(25)
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_25)
+        // Fail the build on Kotlin warnings, including the extra diagnostics
+        // (redundant modifiers, unused values, and similar) so new code cannot
+        // land with them. Nullness follows JSR-305 and JSpecify as strict so
+        // Paper's annotated API is not treated as a platform type.
+        allWarningsAsErrors.set(true)
+        extraWarnings.set(true)
+        freeCompilerArgs.addAll(
+            "-Xjsr305=strict",
+            "-Xjspecify-annotations=strict",
+            "-Xconsistent-data-class-copy-visibility",
+        )
     }
 }
 

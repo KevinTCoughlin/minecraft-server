@@ -43,4 +43,5 @@ if grep -Eq 'mapfile|find .*(-printf|-maxdepth|-mindepth)|sort -V' \
 fi
 
 grep -q 'command -v shasum' "$ROOT_DIR/scripts/update-paper.sh"
+"$ROOT_DIR/tests/jvm-opts.sh"
 echo "Script portability checks passed"

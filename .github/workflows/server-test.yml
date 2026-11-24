@@ -66,10 +66,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up JDK ${{ matrix.java }}
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'  # Eclipse Foundation OpenJDK
@@ -255,9 +257,16 @@ jobs:
           if [[ "$GC_TYPE" == "zgc" ]]; then
             [[ "$CMDLINE" == *"-XX:+UseZGC"* ]] || { echo "ZGC run is missing -XX:+UseZGC"; exit 1; }
             [[ "$CMDLINE" != *ZGenerational* ]] || { echo "Removed -XX:+ZGenerational is still set"; exit 1; }
+            [[ "$CMDLINE" != *"-XX:+UseG1GC"* ]] || { echo "ZGC run still sets G1GC"; exit 1; }
           else
             [[ "$CMDLINE" == *"-XX:+UseG1GC"* ]] || { echo "G1GC run is missing -XX:+UseG1GC"; exit 1; }
           fi
+          [[ "$CMDLINE" == *"-XX:+ExitOnOutOfMemoryError"* ]] || { echo "Missing -XX:+ExitOnOutOfMemoryError"; exit 1; }
+          [[ "$CMDLINE" == *"-XX:+HeapDumpOnOutOfMemoryError"* ]] || { echo "Missing heap dump on OOM"; exit 1; }
+          [[ "$CMDLINE" == *"-XX:HeapDumpPath="* ]] || { echo "Missing HeapDumpPath"; exit 1; }
+          # Host smoke test uses a fixed heap. Container runs use MaxRAMPercentage.
+          [[ "$CMDLINE" == *"-Xmx"* ]] || { echo "Fixed-heap run is missing -Xmx"; exit 1; }
+          [[ "$CMDLINE" != *MaxRAMPercentage* ]] || { echo "Fixed-heap run set MaxRAMPercentage"; exit 1; }
 
       - name: Wait for server startup
         run: |
@@ -353,13 +362,13 @@ jobs:
 
           # Keep logs for debugging but remove other generated files
           rm -f paper.jar eula.txt server.properties
-          rm -rf cache libraries versions
+          rm -rf cache libraries versions dumps
 
           echo "Cleanup complete"
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: server-logs-${{ matrix.name }}
           path: |
