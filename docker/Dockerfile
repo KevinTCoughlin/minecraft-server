@@ -79,6 +79,8 @@ RUN apk upgrade --no-cache && \
     busybox-extras && \
     rm -rf /var/cache/apk/*
 
+# MEMORY is the simple knob (2G, 4G, auto, 75%). Unset is auto: a memory
+# limit uses MAX_RAM_PERCENTAGE, and no limit uses a safe default heap.
 ENV TZ=UTC \
     GC_TYPE=g1gc \
     MEMORY_MODE=container \

@@ -51,7 +51,7 @@ template: |
   - **Java 25** (Eclipse Temurin). Java 21 is not supported on this release.
   - Minecraft 1.21.x servers should stay on the previous release.
   - **Server Memory** 2GB minimum, 4GB recommended
-  - **Container memory limit** required. The heap is 75% of the cgroup limit, and the process refuses to start when the limit is unlimited. This is a breaking change from 1.x images, which used a fixed heap and could start without `--memory` / `mem_limit`. The Compose file sets 6G. Host starts still use `MIN_RAM` and `MAX_RAM`.
+  - **Container memory**: Starting without a memory limit works again with a safe default. With no limit, the heap is about 25% of host memory, clamped between 1G and 4G, or a fixed 2G when host memory cannot be read. When a limit is set, the heap stays 75% of that limit. Set `MEMORY` to `2G`, `4G`, `auto`, or `75%` to override it. The Compose file sets 6G. Host starts still use `MIN_RAM` and `MAX_RAM` unless `MEMORY` is set.
 
   ## Installation
 

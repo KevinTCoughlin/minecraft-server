@@ -29,8 +29,9 @@ For advanced customization, build from the Dockerfile:
 cd ..  # Go to repository root
 docker build -f docker/Dockerfile -t minecraft-server:latest .
 
-# Run the custom image. The heap is 75% of --memory. Do not replace the
-# command: the entrypoint turns SIGTERM into the console "stop" command.
+# Run the custom image. With --memory, the heap is 75% of that limit.
+# With no --memory, the server still starts and picks a safe default heap.
+# Do not replace the command: the entrypoint turns SIGTERM into "stop".
 docker run -d \
   --name minecraft-server \
   --read-only \
@@ -55,7 +56,7 @@ Build plugins into the image first if you want them baked in: `./gradlew deployT
 
 Edit `docker-compose.yml` to customize:
 
-- **Memory**: container limit `mem_limit` (default 6G). The heap is 75% of that limit (`INIT_MEMORY` / `MAX_MEMORY`), not a fixed `-Xmx`
+- **Memory**: container limit `mem_limit` (default 6G). On the itzg image the heap is 75% of that limit (`INIT_MEMORY` / `MAX_MEMORY`). The custom image uses the same percentage when a limit is set, and accepts `MEMORY` (`2G`, `4G`, `auto`, or `75%`). With no limit it picks a safe default heap instead of refusing to start. See [How much memory?](../README.md#how-much-memory).
 - **Configs**: on first start, `prepare-data` copies `server.properties`, `bukkit.yml`, `spigot.yml`, and the Paper world defaults into the data volume. itzg then turns RCON on in that copy so `docker stop` can save the world. Port 25575 is not published. The files in `server/` are not modified.
 - **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 258)
 - **Server Settings**: Various `SERVER_*` environment variables
@@ -118,7 +119,7 @@ docker run -d \
   minecraft-server:latest
 ```
 
-A read-only root needs the `/data` volume and a writable `/tmp`. Without a memory limit the container refuses to start, because the heap is a percentage of that limit.
+A read-only root needs the `/data` volume and a writable `/tmp`. Without a memory limit the container still starts: the heap is a safe default (about 25% of host memory, clamped between 1G and 4G, or 2G if host memory cannot be read) and the log prints `docker run -m 4g …` and `deploy.resources.limits.memory`. Set a limit when you can. The heap is then 75% of that limit.
 
 ## Networking
 

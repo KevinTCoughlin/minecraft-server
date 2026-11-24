@@ -3,6 +3,7 @@ name: Docker Image Build & Scan
 on:
   push:
     branches: [master, main]
+    tags: ['v*']
     paths:
       - 'docker/**'
       - 'server/**'
@@ -14,6 +15,7 @@ on:
       - 'gradle.properties'
       - 'scripts/jvm-opts.sh'
       - 'tests/docker-smoke.sh'
+      - 'tests/docker-smoke-nolimit.sh'
       - 'tests/compose-smoke.sh'
       - '.github/workflows/docker.yml'
   pull_request:
@@ -29,6 +31,7 @@ on:
       - 'gradle.properties'
       - 'scripts/jvm-opts.sh'
       - 'tests/docker-smoke.sh'
+      - 'tests/docker-smoke-nolimit.sh'
       - 'tests/compose-smoke.sh'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
@@ -133,6 +136,9 @@ jobs:
 
       - name: Smoke test server boot
         run: tests/docker-smoke.sh "${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+
+      - name: Smoke test boot without a memory limit
+        run: tests/docker-smoke-nolimit.sh "${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
 
       - name: Smoke test itzg Compose service
         run: tests/compose-smoke.sh

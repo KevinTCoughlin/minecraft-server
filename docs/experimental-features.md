@@ -44,7 +44,32 @@ The server uses comprehensive JVM optimization flags including experimental feat
 -Daikars.new.flags=true
 ```
 
-`scripts/jvm-opts.sh` is the single flag list. On a host (`MEMORY_MODE=fixed`, the `start.sh` default) the heap is `-Xms`/`-Xmx`. In the container image (`MEMORY_MODE=container`) those are replaced by `-XX:InitialRAMPercentage` and `-XX:MaxRAMPercentage` (both 75 by default) so the heap tracks the cgroup limit and does not resize. The container must have a memory limit. `G1NewSizePercent`, `G1MaxNewSizePercent`, and `G1MixedGCLiveThresholdPercent` are still experimental on Java 25, which is why `UnlockExperimentalVMOptions` stays. The other Aikar flags are accepted on Java 25 with no warning.
+`scripts/jvm-opts.sh` is the single flag list. On a host (`MEMORY_MODE=fixed`, the `start.sh` default) the heap is `-Xms`/`-Xmx` from `MIN_RAM` and `MAX_RAM`. In the container image (`MEMORY_MODE=container`) a memory limit selects `-XX:InitialRAMPercentage` and `-XX:MaxRAMPercentage` (both 75 by default) so the heap tracks the cgroup limit and does not resize. With no limit, the image does not refuse to start and does not take a percentage of the whole machine. It uses a safe default heap, about 25% of host memory clamped between 1G and 4G, or 2G if host memory cannot be read, and prints how to set a limit. `MEMORY` overrides that choice (`2G`, `4G`, `auto`, or `75%`). `G1NewSizePercent`, `G1MaxNewSizePercent`, and `G1MixedGCLiveThresholdPercent` are still experimental on Java 25, which is why `UnlockExperimentalVMOptions` stays. The other Aikar flags are accepted on Java 25 with no warning.
+
+### How much memory?
+
+`MEMORY` is the one knob. A container limit is still the better way to size the server: the heap is then 75% of that limit unless you set another percentage. With no limit, the safe default above is a boot choice, not a sizing recommendation.
+
+These are general starting points for the **container limit** (`docker run -m` or Compose `deploy.resources.limits.memory`), not benchmarks. This repository has not measured them on a production world. View distance moves the numbers as much as player count does.
+
+| Players | Vanilla | Small | Modded |
+|---------|---------|-------|--------|
+| 1–5 | 2G | 2G | 4G |
+| 6–20 | 4G | 4G–6G | 6G–8G |
+| More than 20 | 6G and up | 6G–8G | 8G and up |
+
+- **Vanilla** is one world and few plugins. A handful of players keep a modest set of chunks loaded, so 2G is enough to boot and play.
+- **Small** is a compact world or a light plugin set, such as the parkour maps in this repo. Extra worlds and plugins sit on top of the same heap, so a busier small server wants the same limit as vanilla or one step higher.
+- **Modded** means a modpack or many plugins. Those load more classes and keep more of the world in memory, so start higher and raise the limit if the server pauses or restarts on an out-of-memory error.
+- A 4G limit is about a 3G heap plus the rest for the JVM. That is why the limit is larger than the heap you want.
+
+```bash
+docker run -m 4g …
+```
+
+In Compose, set `deploy.resources.limits.memory` (for example `4G`).
+
+For a before-and-after check of heap use, pauses, and TPS on a copy of a real world, follow [minecraft-server#129](https://github.com/KevinTCoughlin/minecraft-server/issues/129).
 
 `-XX:+ExitOnOutOfMemoryError` ends the process on the first out-of-memory error so a supervisor can restart it. The heap dump is written under `HEAP_DUMP_PATH` (`server/dumps` for `start.sh`, `/data/dumps` in the image).
 
@@ -189,7 +214,7 @@ Once the bundle datapack is enabled:
 - **Solution**: Try disabling specific flags one at a time
 
 **Problem**: High memory usage
-- **Solution**: On a host, adjust `MIN_RAM` and `MAX_RAM`. In a container, set the memory limit and `MAX_RAM_PERCENTAGE` (the heap is that percentage of the limit, not a fixed `-Xmx`)
+- **Solution**: On a host, adjust `MIN_RAM` and `MAX_RAM`, or set `MEMORY` (`2G`, `4G`, `auto`, or `75%`). In a container, set a memory limit (the heap is 75% of it unless `MEMORY` says otherwise). See [How much memory?](#how-much-memory) for starting points. A limit under 1G, or a heap that leaves very little room outside itself, prints a warning and still starts.
 - **Solution**: Monitor with `/spark profiler` if using Spark plugin
 
 ### Minecraft Experimental Features Issues

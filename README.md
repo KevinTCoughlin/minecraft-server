@@ -136,9 +136,11 @@ Experimental Minecraft features are enabled via datapacks:
 ### Environment Variables
 
 ```bash
-# start.sh
-MIN_RAM=2G          # Minimum RAM allocation
-MAX_RAM=4G          # Maximum RAM allocation
+# start.sh and the container image
+MEMORY=auto         # auto, a size (2G, 4G, 512M), or a percent of the container limit (75%)
+MIN_RAM=2G          # Fixed heap when MEMORY is unset (host start)
+MAX_RAM=4G          # Fixed heap when MEMORY is unset (host start)
+MAX_RAM_PERCENTAGE=75.0  # Heap share of the container limit when MEMORY is unset
 
 # update-paper.sh
 MC_VERSION=26.3  # Minecraft version (defaults to server/.paper-version)
@@ -158,6 +160,36 @@ DEPLOY_USER=minecraft
 DEPLOY_PATH=~/minecraft-server
 DEPLOY_PORT=22
 ```
+
+## How much memory?
+
+`MEMORY` is the one knob: `2G`, `4G`, `auto`, or `75%`. A container limit is still the better way to size the server. With a limit, the heap stays a percentage of that limit (75% unless you set another percentage), so the rest can hold metaspace, threads, and native memory. With no limit, the server does not refuse to start and does not take a percentage of the whole machine. It picks a safe heap, about 25% of host memory, rounded to the nearest 256M and kept between 1G and 4G, or a fixed 2G if host memory cannot be read, and it prints the `docker run -m` and Compose settings below.
+
+These are general starting points for the **container limit** (`docker run -m` or Compose `deploy.resources.limits.memory`), not benchmarks. This repository has not measured them on a production world. View distance moves the numbers as much as player count does.
+
+| Players | Vanilla | Small | Modded |
+|---------|---------|-------|--------|
+| 1–5 | 2G | 2G | 4G |
+| 6–20 | 4G | 4G–6G | 6G–8G |
+| More than 20 | 6G and up | 6G–8G | 8G and up |
+
+- **Vanilla** is one world and few plugins. A handful of players keep a modest set of chunks loaded, so 2G is enough to boot and play.
+- **Small** is a compact world or a light plugin set, such as the parkour maps in this repo. Extra worlds and plugins sit on top of the same heap, so a busier small server wants the same limit as vanilla or one step higher.
+- **Modded** means a modpack or many plugins. Those load more classes and keep more of the world in memory, so start higher and raise the limit if the server pauses or restarts on an out-of-memory error.
+- A 4G limit is about a 3G heap plus the rest for the JVM. That is why the limit is larger than the heap you want.
+
+```bash
+docker run -m 4g …
+```
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 4G
+```
+
+For a before-and-after check of heap use, pauses, and TPS on a copy of a real world, follow [minecraft-server#129](https://github.com/KevinTCoughlin/minecraft-server/issues/129).
 
 ## Plugin Development
 
