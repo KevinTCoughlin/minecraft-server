@@ -14,6 +14,7 @@ on:
       - 'gradle.properties'
       - 'scripts/jvm-opts.sh'
       - 'tests/docker-smoke.sh'
+      - 'tests/compose-smoke.sh'
       - '.github/workflows/docker.yml'
   pull_request:
     branches: [master, main]
@@ -28,6 +29,7 @@ on:
       - 'gradle.properties'
       - 'scripts/jvm-opts.sh'
       - 'tests/docker-smoke.sh'
+      - 'tests/compose-smoke.sh'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 
@@ -68,7 +70,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
-          gradle-home-cache-cleanup: true
+          # Replaces gradle-home-cache-cleanup: true, which cleaned the cache
+          # even when the build failed.
+          cache-cleanup: always
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
       - name: Build plugins
@@ -129,6 +133,9 @@ jobs:
 
       - name: Smoke test server boot
         run: tests/docker-smoke.sh "${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+
+      - name: Smoke test itzg Compose service
+        run: tests/compose-smoke.sh
 
       - name: Upload smoke logs on failure
         if: failure()

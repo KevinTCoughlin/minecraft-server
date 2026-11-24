@@ -19,6 +19,12 @@
 #
 # Every mode exits on the first OutOfMemoryError and writes a heap dump under
 # HEAP_DUMP_PATH, which must be a directory on a mounted volume in containers.
+#
+# -XX:+UseCompactObjectHeaders is not included. On JDK 25 it is still
+# experimental (it also needs UnlockExperimentalVMOptions, which the G1 set
+# already unlocks) and it is not part of Aikar's flags. Turn it on only after
+# measuring heap use, GC pauses, and TPS on a copy of a real world. See
+# docs/experimental-features.md.
 
 set -euo pipefail
 

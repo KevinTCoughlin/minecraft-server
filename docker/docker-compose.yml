@@ -1,12 +1,47 @@
 services:
   # Named volumes are root-owned. The server runs as uid 1000 with every
   # capability dropped, so it cannot chown the volume itself. This one-shot
-  # does that only when the volume root is not already uid 1000.
+  # seeds writable copies of the repo configs (the live files cannot be the
+  # read-only bind mounts: Paper rewrites them, and itzg must be able to turn
+  # RCON on so SIGTERM becomes the console "stop" command) and chowns /data.
   prepare-data:
     # itzg/minecraft-server:java25
     image: itzg/minecraft-server:java25@sha256:dc15f05423064860968043de873316dbd0c027a7d9c8354826229d7c20dd4619
     user: "0:0"
-    entrypoint: ["sh", "-c", "if [ \"$(stat -c %u /data)\" != 1000 ]; then chown -R 1000:1000 /data; fi"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -eu
+        mkdir -p /data/config
+        copy() {
+          if [ -f "$1" ] && [ ! -e "$2" ]; then
+            cp "$1" "$2"
+          fi
+          # The repo files are often mode 0444. itzg rewrites server.properties
+          # (to turn RCON on for the stop command) and Paper rewrites the yml.
+          if [ -f "$2" ]; then
+            chmod u+rw "$2"
+          fi
+        }
+        copy /mnt/config/server.properties /data/server.properties
+        copy /mnt/config/bukkit.yml /data/bukkit.yml
+        copy /mnt/config/spigot.yml /data/spigot.yml
+        copy /mnt/config/paper-global.yml /data/config/paper-global.yml
+        copy /mnt/config/paper-world-defaults.yml /data/config/paper-world-defaults.yml
+        # Always, not only when /data is still root-owned. A volume whose root
+        # is already uid 1000 would otherwise keep root-owned copies, and
+        # itzg (uid 1000) cannot rewrite server.properties.
+        chown 1000:1000 \
+          /data /data/config \
+          /data/server.properties /data/bukkit.yml /data/spigot.yml \
+          /data/config/paper-global.yml /data/config/paper-world-defaults.yml
+        if [ "$(stat -c %u /data)" != 1000 ]; then
+          chown -R 1000:1000 /data
+        fi
+        if [ -d /data/plugins ] && [ "$(stat -c %u /data/plugins)" != 1000 ]; then
+          chown -R 1000:1000 /data/plugins
+        fi
     restart: "no"
     read_only: true
     cap_drop:
@@ -19,6 +54,12 @@ services:
       - no-new-privileges:true
     volumes:
       - minecraft-data:/data
+      - ../server/plugins:/data/plugins
+      - ../server/server.properties:/mnt/config/server.properties:ro
+      - ../server/bukkit.yml:/mnt/config/bukkit.yml:ro
+      - ../server/spigot.yml:/mnt/config/spigot.yml:ro
+      - ../server/config/paper-global.yml:/mnt/config/paper-global.yml:ro
+      - ../server/config/paper-world-defaults.yml:/mnt/config/paper-world-defaults.yml:ro
     mem_limit: 256m
     cpus: 0.5
 
@@ -109,6 +150,11 @@ services:
         -Dusing.aikars.flags=https://mcflags.emc.gs
         -Daikars.new.flags=true
 
+      # RCON stays inside the container (port 25575 is not published). The
+      # runner uses it to deliver "stop" on SIGTERM. The repo server.properties
+      # has enable-rcon=false and is only the seed; itzg rewrites the volume copy.
+      ENABLE_RCON: "true"
+
       # Server settings
       SERVER_NAME: "My PaperMC Server"
       MOTD: "A PaperMC Server - Powered by Docker"
@@ -135,17 +181,11 @@ services:
       # AUTOPAUSE_TIMEOUT_EST: 600
 
     volumes:
-      # Persist world data, logs, and heap dumps
+      # Persist world data, logs, heap dumps, and the seeded configs.
       - minecraft-data:/data
 
-      # Mount configuration files (optional - for customization)
-      - ../server/server.properties:/data/server.properties:ro
-      - ../server/config/paper-global.yml:/data/config/paper-global.yml:ro
-      - ../server/config/paper-world-defaults.yml:/data/config/paper-world-defaults.yml:ro
-      - ../server/bukkit.yml:/data/bukkit.yml:ro
-      - ../server/spigot.yml:/data/spigot.yml:ro
-
-      # Mount plugins
+      # Plugins stay on the host path. prepare-data chowns this directory to
+      # uid 1000 so the server can write plugin data with every capability dropped.
       - ../server/plugins:/data/plugins
 
     healthcheck:

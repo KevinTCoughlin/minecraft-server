@@ -50,6 +50,18 @@ The server uses comprehensive JVM optimization flags including experimental feat
 
 **Note**: The `-Dusing.aikars.flags` and `-Daikars.new.flags` properties are marker flags that identify the server as using Aikar's optimized configuration. They don't affect runtime behavior but may be used by plugins and monitoring tools for detection and troubleshooting.
 
+### Not enabled: compact object headers
+
+JDK 25 can shrink object headers with `-XX:+UseCompactObjectHeaders` (Project Lilliput). That flag is **not** in `scripts/jvm-opts.sh` or the Compose `JVM_XX_OPTS`. It is outside Aikar's set, and on a Minecraft heap it can change both memory use and pause times. The G1 set already passes `-XX:+UnlockExperimentalVMOptions`, which this flag also requires.
+
+Try it only on a **copy** of a real world, with the same heap and the same flags otherwise:
+
+1. Record a baseline: heap used after the world is warm, GC pause times, and TPS.
+2. Add `-XX:+UseCompactObjectHeaders` and repeat the same session.
+3. Keep it only if the heap drops without worse pauses or TPS.
+
+Do not enable it on the live server until that comparison exists. The measurement steps are tracked in https://github.com/KevinTCoughlin/minecraft-server/issues/129.
+
 ### ZGC (Alternative - MC 26.1+ Default)
 
 For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=zgc` to enable:

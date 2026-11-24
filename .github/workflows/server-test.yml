@@ -75,7 +75,6 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'  # Eclipse Foundation OpenJDK
-          cache: 'gradle'
 
       - name: Verify Java installation
         run: |

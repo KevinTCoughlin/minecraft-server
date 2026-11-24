@@ -56,6 +56,7 @@ Build plugins into the image first if you want them baked in: `./gradlew deployT
 Edit `docker-compose.yml` to customize:
 
 - **Memory**: container limit `mem_limit` (default 6G). The heap is 75% of that limit (`INIT_MEMORY` / `MAX_MEMORY`), not a fixed `-Xmx`
+- **Configs**: on first start, `prepare-data` copies `server.properties`, `bukkit.yml`, `spigot.yml`, and the Paper world defaults into the data volume. itzg then turns RCON on in that copy so `docker stop` can save the world. Port 25575 is not published. The files in `server/` are not modified.
 - **Version**: `VERSION` environment variable (default: 26.3) and `PAPER_BUILD` (default: 258)
 - **Server Settings**: Various `SERVER_*` environment variables
 - **Ports**: Change port mappings if needed
