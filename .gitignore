@@ -58,6 +58,9 @@ Thumbs.db
 backups/
 *.tar.gz
 
+# Compact-header measurement copies and logs
+.compact-headers-measure/
+
 # WorldEdit runtime
 server/wepif.yml
 

@@ -122,6 +122,9 @@ See the [Plugin Development section](README.md#plugin-development) in README for
 # JVM flag contract (G1, generational ZGC, container memory, OOM dumps)
 tests/jvm-opts.sh
 
+# Compact object header harness (copy-only safety, parsers, stubbed run)
+tests/compact-headers.sh
+
 # Run tests for specific plugin
 ./gradlew :plugins:blackjack-plugin:test
 

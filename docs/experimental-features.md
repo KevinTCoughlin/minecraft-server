@@ -75,17 +75,18 @@ For a before-and-after check of heap use, pauses, and TPS on a copy of a real wo
 
 **Note**: The `-Dusing.aikars.flags` and `-Daikars.new.flags` properties are marker flags that identify the server as using Aikar's optimized configuration. They don't affect runtime behavior but may be used by plugins and monitoring tools for detection and troubleshooting.
 
-### Not enabled: compact object headers
+### Compact object headers (off unless opted in)
 
-JDK 25 can shrink object headers with `-XX:+UseCompactObjectHeaders` (Project Lilliput). That flag is **not** in `scripts/jvm-opts.sh` or the Compose `JVM_XX_OPTS`. It is outside Aikar's set, and on a Minecraft heap it can change both memory use and pause times. The G1 set already passes `-XX:+UnlockExperimentalVMOptions`, which this flag also requires.
+JDK 25 can shrink object headers with `-XX:+UseCompactObjectHeaders` (Project Lilliput). `scripts/jvm-opts.sh` leaves the flag off unless `COMPACT_OBJECT_HEADERS` is `true` (`1`, `yes`, and `on` do the same). The Compose `JVM_XX_OPTS` block does not set it. The flag is outside Aikar's set, and on a Minecraft heap it can change memory use and pause times. The G1 set already passes `-XX:+UnlockExperimentalVMOptions`, which this flag also requires. The ZGC set does not, so the opt-in adds that unlock only when the flag is requested.
 
-Try it only on a **copy** of a real world, with the same heap and the same flags otherwise:
+Measure a **copy** of a real world before using the opt-in on a server anyone plays:
 
-1. Record a baseline: heap used after the world is warm, GC pause times, and TPS.
-2. Add `-XX:+UseCompactObjectHeaders` and repeat the same session.
-3. Keep it only if the heap drops without worse pauses or TPS.
+```bash
+./scripts/stop.sh
+./scripts/measure-compact-headers.sh --world server/parkour-spiral
+```
 
-Do not enable it on the live server until that comparison exists. The measurement steps are tracked in https://github.com/KevinTCoughlin/minecraft-server/issues/129.
+The harness refuses to start Paper on the original world path. Acceptance is a smaller heap with GC pauses and TPS no worse. MSPT is part of that TPS check because TPS is capped at 20. A passing summary is evidence for a follow-up that would change the default. The harness itself leaves the default off. Full steps and the decision rule are in [Compact object headers](compact-object-headers.md). The measurement is tracked in https://github.com/KevinTCoughlin/minecraft-server/issues/129.
 
 ### ZGC (Alternative - MC 26.1+ Default)
 

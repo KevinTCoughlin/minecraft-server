@@ -68,13 +68,47 @@ assert_absent "$fixed" "-XX:+UseG1GC"
 assert_absent "$fixed" "MaxRAMPercentage"
 assert_absent "$fixed" "ZGenerational"
 assert_absent "$fixed" "UseCompactObjectHeaders"
+assert_absent "$fixed" "UnlockExperimentalVMOptions"
 assert_absent "$fixed" "G1NewSizePercent"
+
+compact_g1=$(
+    HEAP_DUMP_PATH=/tmp/dumps COMPACT_OBJECT_HEADERS=true \
+        MEMORY_MODE=fixed GC_TYPE=g1gc MIN_RAM=1G MAX_RAM=1G \
+        "$OPTS"
+)
+assert_contains "$compact_g1" "-XX:+UseCompactObjectHeaders"
+assert_contains "$compact_g1" "-XX:+UnlockExperimentalVMOptions"
+assert_contains "$compact_g1" "-XX:+UseG1GC"
+unlock_count=$(printf '%s\n' "$compact_g1" | grep -F -x -c -- '-XX:+UnlockExperimentalVMOptions')
+compact_count=$(printf '%s\n' "$compact_g1" | grep -F -x -c -- '-XX:+UseCompactObjectHeaders')
+[[ "$unlock_count" -eq 1 ]] || fail "G1 opt-in should not duplicate UnlockExperimentalVMOptions"
+[[ "$compact_count" -eq 1 ]] || fail "compact headers flag should appear once"
+
+compact_zgc=$(
+    HEAP_DUMP_PATH=/tmp/dumps COMPACT_OBJECT_HEADERS=yes \
+        MEMORY_MODE=fixed GC_TYPE=zgc MIN_RAM=1G MAX_RAM=1G \
+        "$OPTS"
+)
+assert_contains "$compact_zgc" "-XX:+UseZGC"
+assert_contains "$compact_zgc" "-XX:+UnlockExperimentalVMOptions"
+assert_contains "$compact_zgc" "-XX:+UseCompactObjectHeaders"
+assert_absent "$compact_zgc" "ZGenerational"
+
+off=$(
+    HEAP_DUMP_PATH=/tmp/dumps COMPACT_OBJECT_HEADERS=false \
+        MEMORY_MODE=fixed GC_TYPE=g1gc MIN_RAM=1G MAX_RAM=1G \
+        "$OPTS"
+)
+assert_absent "$off" "UseCompactObjectHeaders"
 
 if HEAP_DUMP_PATH=/dumps GC_TYPE=shenandoah "$OPTS" >/dev/null 2>&1; then
     fail "unknown GC_TYPE should fail"
 fi
 if MEMORY_MODE=container GC_TYPE=g1gc "$OPTS" >/dev/null 2>&1; then
     fail "missing HEAP_DUMP_PATH should fail"
+fi
+if HEAP_DUMP_PATH=/dumps COMPACT_OBJECT_HEADERS=maybe GC_TYPE=g1gc "$OPTS" >/dev/null 2>&1; then
+    fail "unknown COMPACT_OBJECT_HEADERS should fail"
 fi
 
 capture() {
@@ -339,6 +373,27 @@ if command -v java >/dev/null 2>&1; then
                 fi
             done
         done
+        # Compact headers exist on JDK 25. Older JDKs reject the flag; skip there.
+        if [[ "$java_major" -ge 25 ]]; then
+            for gc in g1gc zgc; do
+                flags=()
+                while IFS= read -r flag; do
+                    flags+=("$flag")
+                done < <(
+                    HEAP_DUMP_PATH=/tmp COMPACT_OBJECT_HEADERS=true \
+                        MEMORY_MODE=fixed GC_TYPE="$gc" MIN_RAM=512M MAX_RAM=512M \
+                        "$OPTS"
+                )
+                err=$(java "${flags[@]}" -version 2>&1) || {
+                    printf '%s\n' "$err" >&2
+                    fail "Java rejected compact-header flags for GC_TYPE=$gc"
+                }
+                if printf '%s\n' "$err" | grep -Eiq 'unrecognized|ignoring option|error:'; then
+                    printf '%s\n' "$err" >&2
+                    fail "Java warned about compact-header flags for GC_TYPE=$gc"
+                fi
+            done
+        fi
     fi
 fi
 

@@ -114,6 +114,7 @@ minecraft-server/
 | `update-paper.sh` | Download/update to latest PaperMC build |
 | `backup.sh` | Archive world folders with timestamp |
 | `deploy.sh` | Rsync to remote host |
+| `measure-compact-headers.sh` | Compare heap, GC pauses, and TPS with compact object headers on a copy of a world |
 
 ### JVM Experimental Features
 
@@ -123,6 +124,8 @@ This server uses optimized JVM flags including experimental features for maximum
 - **Aikar's Flags** - Industry-standard Minecraft server JVM configuration
 
 **📖 See [Experimental Features Guide](docs/experimental-features.md) for complete details, configuration options, and troubleshooting.**
+
+`-XX:+UseCompactObjectHeaders` stays off unless `COMPACT_OBJECT_HEADERS=true`. Compare it on a copy of a real world with [the measurement harness](docs/compact-object-headers.md) before turning that opt-in on for a server anyone plays.
 
 ### Minecraft Experimental Features
 
@@ -159,6 +162,13 @@ DEPLOY_HOST=your-server.com
 DEPLOY_USER=minecraft
 DEPLOY_PATH=~/minecraft-server
 DEPLOY_PORT=22
+
+# scripts/jvm-opts.sh — off unless set to true
+COMPACT_OBJECT_HEADERS=true
+
+# measure-compact-headers.sh
+WARMUP_SECONDS=120
+SOAK_SECONDS=180
 ```
 
 ## How much memory?

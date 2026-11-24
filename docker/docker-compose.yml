@@ -124,6 +124,8 @@ services:
       # -XX flags. Aikar's G1 set is unchanged on Java 25. OOM exits the JVM
       # so the restart policy can bring it back, and the heap dump is written
       # on the /data volume.
+      # Leave -XX:+UseCompactObjectHeaders out. Measure a copy of a real world
+      # with scripts/measure-compact-headers.sh before adding it here.
       JVM_XX_OPTS: >-
         -XX:+UseG1GC
         -XX:+ParallelRefProcEnabled

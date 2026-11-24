@@ -31,11 +31,13 @@
 # Every mode exits on the first OutOfMemoryError and writes a heap dump under
 # HEAP_DUMP_PATH, which must be a directory on a mounted volume in containers.
 #
-# -XX:+UseCompactObjectHeaders is not included. On JDK 25 it is still
-# experimental (it also needs UnlockExperimentalVMOptions, which the G1 set
-# already unlocks) and it is not part of Aikar's flags. Turn it on only after
-# measuring heap use, GC pauses, and TPS on a copy of a real world. See
-# docs/experimental-features.md.
+# -XX:+UseCompactObjectHeaders is off unless COMPACT_OBJECT_HEADERS is true
+# (also: 1, yes, on). On JDK 25 it is still experimental, so the opt-in also
+# passes UnlockExperimentalVMOptions when the selected GC set does not already
+# (G1 already does; ZGC does not). It is not part of Aikar's flags. Leave it
+# off until scripts/measure-compact-headers.sh shows a smaller heap with
+# pauses and TPS no worse, on a copy of a real world. See
+# docs/compact-object-headers.md.
 
 set -euo pipefail
 
@@ -460,6 +462,23 @@ case "$gc" in
         ;;
     *)
         echo "Unknown GC_TYPE: ${GC_TYPE} (expected g1gc or zgc)" >&2
+        exit 1
+        ;;
+esac
+
+# Opt-in only. Empty and the usual false values leave the flag off.
+compact_headers=$(printf '%s' "${COMPACT_OBJECT_HEADERS:-}" | tr '[:upper:]' '[:lower:]')
+case "$compact_headers" in
+    ""|0|false|no|off)
+        ;;
+    1|true|yes|on)
+        if ! printf '%s\n' "${flags[@]}" | grep -F -x -q -- '-XX:+UnlockExperimentalVMOptions'; then
+            flags+=("-XX:+UnlockExperimentalVMOptions")
+        fi
+        flags+=("-XX:+UseCompactObjectHeaders")
+        ;;
+    *)
+        echo "Unknown COMPACT_OBJECT_HEADERS: ${COMPACT_OBJECT_HEADERS} (expected true or false)" >&2
         exit 1
         ;;
 esac

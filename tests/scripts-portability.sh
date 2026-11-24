@@ -37,11 +37,15 @@ tar -tzf "$latest_backup" | grep -q '^world/level.dat$'
 SERVER_DIR="$SERVER_DIR" "$ROOT_DIR/scripts/update-paper.sh" --help >/dev/null
 
 if grep -Eq 'mapfile|find .*(-printf|-maxdepth|-mindepth)|sort -V' \
-    "$ROOT_DIR/scripts/backup.sh" "$ROOT_DIR/scripts/update-paper.sh"; then
+    "$ROOT_DIR/scripts/backup.sh" \
+    "$ROOT_DIR/scripts/update-paper.sh" \
+    "$ROOT_DIR/scripts/jvm-opts.sh" \
+    "$ROOT_DIR/scripts/measure-compact-headers.sh"; then
     echo "GNU-only shell construct found" >&2
     exit 1
 fi
 
 grep -q 'command -v shasum' "$ROOT_DIR/scripts/update-paper.sh"
 "$ROOT_DIR/tests/jvm-opts.sh"
+"$ROOT_DIR/tests/compact-headers.sh"
 echo "Script portability checks passed"
