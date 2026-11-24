@@ -119,6 +119,9 @@ See the [Plugin Development section](README.md#plugin-development) in README for
 # Run all tests
 ./gradlew test
 
+# JVM flag contract (G1, generational ZGC, container memory, OOM dumps)
+tests/jvm-opts.sh
+
 # Run tests for specific plugin
 ./gradlew :plugins:blackjack-plugin:test
 

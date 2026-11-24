@@ -75,47 +75,39 @@ if [[ "$JAVA_VERSION" -lt "$REQUIRED_JAVA" ]]; then
 fi
 
 log_info "Using Java $JAVA_VERSION ($JAVA_CMD)"
-log_info "Starting PaperMC server with ${MIN_RAM} - ${MAX_RAM} RAM, GC: ${GC_TYPE^^}..."
 
-# Build JVM flags based on GC type
-JVM_FLAGS=(
-    "-Xms${MIN_RAM}"
-    "-Xmx${MAX_RAM}"
-)
+# Host starts use a fixed heap. Container starts (docker/entrypoint.sh) use
+# MaxRAMPercentage instead. MEMORY_MODE=container is available here too.
+MEMORY_MODE="${MEMORY_MODE:-fixed}"
+HEAP_DUMP_PATH="${HEAP_DUMP_PATH:-${SERVER_DIR}/dumps}"
+mkdir -p "$HEAP_DUMP_PATH"
 
-if [[ "${GC_TYPE,,}" == "zgc" ]]; then
-    # ZGC. JDK 24 removed -XX:+ZGenerational; generational mode is the only ZGC mode.
-    JVM_FLAGS+=(
-        "-XX:+UseZGC"
-        "-XX:+AlwaysPreTouch"
-        "-XX:+DisableExplicitGC"
-        "-XX:+PerfDisableSharedMem"
-    )
+if [[ "$MEMORY_MODE" == "container" ]]; then
+    log_info "Starting PaperMC server with ${MAX_RAM_PERCENTAGE:-75.0}% of the container memory limit, GC: ${GC_TYPE^^}..."
 else
-    # G1GC - Aikar's flags optimized for Minecraft
-    # See: https://docs.papermc.io/paper/aikars-flags
-    JVM_FLAGS+=(
-        "-XX:+UseG1GC"
-        "-XX:+ParallelRefProcEnabled"
-        "-XX:MaxGCPauseMillis=200"
-        "-XX:+UnlockExperimentalVMOptions"
-        "-XX:+DisableExplicitGC"
-        "-XX:+AlwaysPreTouch"
-        "-XX:G1NewSizePercent=30"
-        "-XX:G1MaxNewSizePercent=40"
-        "-XX:G1HeapRegionSize=8M"
-        "-XX:G1ReservePercent=20"
-        "-XX:G1HeapWastePercent=5"
-        "-XX:G1MixedGCCountTarget=4"
-        "-XX:InitiatingHeapOccupancyPercent=15"
-        "-XX:G1MixedGCLiveThresholdPercent=90"
-        "-XX:G1RSetUpdatingPauseTimePercent=5"
-        "-XX:SurvivorRatio=32"
-        "-XX:+PerfDisableSharedMem"
-        "-XX:MaxTenuringThreshold=1"
-        "-Dusing.aikars.flags=https://mcflags.emc.gs"
-        "-Daikars.new.flags=true"
-    )
+    log_info "Starting PaperMC server with ${MIN_RAM} - ${MAX_RAM} RAM, GC: ${GC_TYPE^^}..."
+fi
+
+export MEMORY_MODE HEAP_DUMP_PATH GC_TYPE MIN_RAM MAX_RAM
+MAX_RAM_PERCENTAGE="${MAX_RAM_PERCENTAGE:-75.0}"
+INITIAL_RAM_PERCENTAGE="${INITIAL_RAM_PERCENTAGE:-$MAX_RAM_PERCENTAGE}"
+export MAX_RAM_PERCENTAGE INITIAL_RAM_PERCENTAGE
+
+flags_file=$(mktemp)
+if ! "${SCRIPT_DIR}/jvm-opts.sh" > "$flags_file"; then
+    log_error "Failed to build JVM flags"
+    rm -f "$flags_file"
+    exit 1
+fi
+JVM_FLAGS=()
+while IFS= read -r flag; do
+    JVM_FLAGS+=("$flag")
+done < "$flags_file"
+rm -f "$flags_file"
+
+if [[ ${#JVM_FLAGS[@]} -eq 0 ]]; then
+    log_error "No JVM flags produced"
+    exit 1
 fi
 
 echo "$$" > "$PID_FILE"

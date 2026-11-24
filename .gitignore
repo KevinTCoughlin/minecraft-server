@@ -25,6 +25,8 @@ server/whitelist.json
 server/session.lock
 server/server.pid
 server/crash-reports/
+server/dumps/
+*.hprof
 
 # Plugin data (except source)
 server/plugins/*/

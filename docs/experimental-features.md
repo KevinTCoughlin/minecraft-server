@@ -35,11 +35,18 @@ The server uses comprehensive JVM optimization flags including experimental feat
 -XX:SurvivorRatio=32
 -XX:+PerfDisableSharedMem
 -XX:MaxTenuringThreshold=1
+-XX:+ExitOnOutOfMemoryError
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/path/to/dumps
 
 # Marker flags for tracking and identification
 -Dusing.aikars.flags=https://mcflags.emc.gs
 -Daikars.new.flags=true
 ```
+
+`scripts/jvm-opts.sh` is the single flag list. On a host (`MEMORY_MODE=fixed`, the `start.sh` default) the heap is `-Xms`/`-Xmx`. In the container image (`MEMORY_MODE=container`) those are replaced by `-XX:InitialRAMPercentage` and `-XX:MaxRAMPercentage` (both 75 by default) so the heap tracks the cgroup limit and does not resize. The container must have a memory limit. `G1NewSizePercent`, `G1MaxNewSizePercent`, and `G1MixedGCLiveThresholdPercent` are still experimental on Java 25, which is why `UnlockExperimentalVMOptions` stays. The other Aikar flags are accepted on Java 25 with no warning.
+
+`-XX:+ExitOnOutOfMemoryError` ends the process on the first out-of-memory error so a supervisor can restart it. The heap dump is written under `HEAP_DUMP_PATH` (`server/dumps` for `start.sh`, `/data/dumps` in the image).
 
 **Note**: The `-Dusing.aikars.flags` and `-Daikars.new.flags` properties are marker flags that identify the server as using Aikar's optimized configuration. They don't affect runtime behavior but may be used by plugins and monitoring tools for detection and troubleshooting.
 
@@ -52,6 +59,8 @@ For Minecraft 26.1+, ZGC (Z Garbage Collector) is the new default. Set `GC_TYPE=
 -XX:+AlwaysPreTouch
 -XX:+DisableExplicitGC
 -XX:+PerfDisableSharedMem
+-XX:+ExitOnOutOfMemoryError
+-XX:+HeapDumpOnOutOfMemoryError
 ```
 
 JDK 24 removed `-XX:+ZGenerational`. Generational ZGC is the only mode, and passing the old flag makes Java 25 print a warning.
@@ -168,7 +177,7 @@ Once the bundle datapack is enabled:
 - **Solution**: Try disabling specific flags one at a time
 
 **Problem**: High memory usage
-- **Solution**: Adjust `-Xms` and `-Xmx` values in scripts or Docker config
+- **Solution**: On a host, adjust `MIN_RAM` and `MAX_RAM`. In a container, set the memory limit and `MAX_RAM_PERCENTAGE` (the heap is that percentage of the limit, not a fixed `-Xmx`)
 - **Solution**: Monitor with `/spark profiler` if using Spark plugin
 
 ### Minecraft Experimental Features Issues

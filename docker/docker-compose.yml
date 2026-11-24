@@ -1,11 +1,67 @@
 services:
+  # Named volumes are root-owned. The server runs as uid 1000 with every
+  # capability dropped, so it cannot chown the volume itself. This one-shot
+  # does that only when the volume root is not already uid 1000.
+  prepare-data:
+    # itzg/minecraft-server:java25
+    image: itzg/minecraft-server:java25@sha256:dc15f05423064860968043de873316dbd0c027a7d9c8354826229d7c20dd4619
+    user: "0:0"
+    entrypoint: ["sh", "-c", "if [ \"$(stat -c %u /data)\" != 1000 ]; then chown -R 1000:1000 /data; fi"]
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - minecraft-data:/data
+    mem_limit: 256m
+    cpus: 0.5
+
   minecraft:
     # java25 tag is Eclipse Temurin 25. Paper 26.3 does not run on the Java 21 image.
-    image: itzg/minecraft-server:java25
+    # itzg/minecraft-server:java25
+    image: itzg/minecraft-server:java25@sha256:dc15f05423064860968043de873316dbd0c027a7d9c8354826229d7c20dd4619
     container_name: minecraft-server
     restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
     tty: true
     stdin_open: true
+    depends_on:
+      prepare-data:
+        condition: service_completed_successfully
+
+    # itzg's mc-server-runner sends "stop" on SIGTERM and waits STOP_DURATION
+    # (default 60s) for the save. The grace period has to be longer than that
+    # or Docker SIGKILLs the process mid-save.
+    stop_grace_period: 90s
+    stop_signal: SIGTERM
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # Heap is 75% of this limit (INIT_MEMORY/MAX_MEMORY). The rest is for
+    # metaspace, GC, and native memory. deploy.resources repeats the same
+    # limits for Compose implementations that read the swarm block.
+    mem_limit: 6g
+    cpus: 2
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "2"
+        reservations:
+          memory: 2G
+
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
 
     ports:
       - "25565:25565"     # Minecraft
@@ -19,9 +75,15 @@ services:
       PAPER_BUILD: "258"
       EULA: "TRUE"
 
-      # Memory settings with experimental JVM features
-      MEMORY: "4G"
-      JVM_OPTS: >-
+      # Empty MEMORY keeps itzg from adding -Xmx1G. The percentages become
+      # -XX:InitialRAMPercentage and -XX:MaxRAMPercentage of the cgroup limit.
+      MEMORY: ""
+      INIT_MEMORY: "75%"
+      MAX_MEMORY: "75%"
+      # -XX flags. Aikar's G1 set is unchanged on Java 25. OOM exits the JVM
+      # so the restart policy can bring it back, and the heap dump is written
+      # on the /data volume.
+      JVM_XX_OPTS: >-
         -XX:+UseG1GC
         -XX:+ParallelRefProcEnabled
         -XX:MaxGCPauseMillis=200
@@ -40,6 +102,10 @@ services:
         -XX:SurvivorRatio=32
         -XX:+PerfDisableSharedMem
         -XX:MaxTenuringThreshold=1
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/data
+      JVM_OPTS: >-
         -Dusing.aikars.flags=https://mcflags.emc.gs
         -Daikars.new.flags=true
 
@@ -69,7 +135,7 @@ services:
       # AUTOPAUSE_TIMEOUT_EST: 600
 
     volumes:
-      # Persist world data
+      # Persist world data, logs, and heap dumps
       - minecraft-data:/data
 
       # Mount configuration files (optional - for customization)
@@ -83,19 +149,11 @@ services:
       - ../server/plugins:/data/plugins
 
     healthcheck:
-      test: mc-health
+      test: ["CMD", "mc-health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 2m
-
-    # Resource limits (optional)
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-        reservations:
-          memory: 2G
 
 volumes:
   minecraft-data:

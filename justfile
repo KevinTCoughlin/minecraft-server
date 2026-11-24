@@ -5,6 +5,11 @@
 #
 # Host ports are overridable so this can run next to another server, e.g.
 #   MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133 just run
+#
+# The heap is MAX_RAM_PERCENTAGE (default 75) of MC_MEMORY, not a fixed -Xmx.
+# The world volume is mounted at /data/<level-name> so an existing world volume
+# (level.dat at its root) still lines up. Configs, logs, plugins, and heap
+# dumps live on the data volume.
 
 ENGINE := env("CONTAINER_ENGINE", if os() == "macos" { "container" } else { "podman" })
 IMAGE := env("MC_IMAGE", "minecraft-server:latest")
@@ -21,6 +26,7 @@ CPUS := env("MC_CPUS", "2")
 # directory, with every dimension under <world>/dimensions/.
 WORLD := "parkour-spiral"
 VOLUME := env("MC_VOLUME", "minecraft-server-world")
+DATA_VOLUME := env("MC_DATA_VOLUME", "minecraft-server-data")
 
 default:
     @just --list
@@ -30,7 +36,8 @@ default:
 image *args:
     {{ENGINE}} build -f docker/Dockerfile -t {{IMAGE}} {{args}} .
 
-# Run the server detached; the world lives on a named volume
+# Run the server detached. Do not replace the image command: the entrypoint
+# turns SIGTERM into the console "stop" command so the world is saved.
 run:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -44,28 +51,51 @@ run:
     fi
     # Apple container needs the volume created up front (podman would auto-create).
     {{ENGINE}} volume inspect {{VOLUME}} >/dev/null 2>&1 || {{ENGINE}} volume create {{VOLUME}} >/dev/null
+    {{ENGINE}} volume inspect {{DATA_VOLUME}} >/dev/null 2>&1 || {{ENGINE}} volume create {{DATA_VOLUME}} >/dev/null
     # Apple container volumes are fresh ext4 filesystems: root-owned, not seeded
     # from the image, with a root-only lost+found that Paper trips over. Hand
     # the top level to the image's minecraft user (uid 1000).
-    {{ENGINE}} run --rm -u 0 -v {{VOLUME}}:/w --entrypoint sh {{IMAGE}} \
-        -c 'find /w -maxdepth 1 ! -user 1000 -exec chown 1000:1000 {} +'
-    {{ENGINE}} run -d --name {{NAME}} \
-        --memory {{MEMORY}} --cpus {{CPUS}} \
-        -p {{MC_PORT}}:25565/tcp \
-        -p {{MC_PORT}}:25565/udp \
-        -p 127.0.0.1:{{RCON_PORT}}:25575/tcp \
-        -p {{BEDROCK_PORT}}:19132/udp \
-        -v {{VOLUME}}:/server/{{WORLD}} \
-        -e RCON_PASSWORD="$rcon_password" \
-        {{IMAGE}} sh -c 'sed -i -e "s/^enable-rcon=.*/enable-rcon=true/" \
-            -e "s/^rcon.password=.*/rcon.password=$RCON_PASSWORD/" server.properties \
-            && exec java $JVM_OPTS -jar paper.jar --nogui'
+    {{ENGINE}} run --rm -u 0 \
+        -v {{VOLUME}}:/world -v {{DATA_VOLUME}}:/data \
+        --entrypoint sh {{IMAGE}} \
+        -c 'for d in /world /data; do find "$d" -maxdepth 1 ! -user 1000 -exec chown 1000:1000 {} +; done'
+    # Apple container does not take the docker/podman hardening flags. Podman
+    # runs read-only, with no capabilities and a 90s stop grace period.
+    # Build one argv so an empty array is never expanded under bash 3.2.
+    args=(run -d --name {{NAME}} --memory {{MEMORY}} --cpus {{CPUS}})
+    if [[ "{{ENGINE}}" != "container" ]]; then
+        args+=(
+            --read-only
+            --cap-drop=ALL
+            --security-opt=no-new-privileges:true
+            --tmpfs=/tmp:rw,nosuid,size=256m
+            --stop-timeout=90
+        )
+    fi
+    args+=(
+        -p {{MC_PORT}}:25565/tcp
+        -p {{MC_PORT}}:25565/udp
+        -p 127.0.0.1:{{RCON_PORT}}:25575/tcp
+        -p {{BEDROCK_PORT}}:19132/udp
+        -v {{DATA_VOLUME}}:/data
+        -v {{VOLUME}}:/data/{{WORLD}}
+        -e RCON_PASSWORD="$rcon_password"
+        {{IMAGE}}
+    )
+    {{ENGINE}} "${args[@]}"
     echo "Started {{NAME}} on :{{MC_PORT}} (RCON 127.0.0.1:{{RCON_PORT}}, Bedrock udp :{{BEDROCK_PORT}})"
 
-# Stop and remove the container (the world volume is kept)
+# Stop and remove the container (the world and data volumes are kept).
+# 90s matches the entrypoint: SIGTERM becomes "stop", then the world saves.
 stop:
-    -{{ENGINE}} stop {{NAME}}
-    -{{ENGINE}} rm {{NAME}}
+    #!/usr/bin/env bash
+    set +e
+    if [[ "{{ENGINE}}" == "container" ]]; then
+        {{ENGINE}} stop {{NAME}}
+    else
+        {{ENGINE}} stop --time 90 {{NAME}}
+    fi
+    {{ENGINE}} rm {{NAME}}
 
 # Follow server logs
 logs:
