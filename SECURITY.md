@@ -65,7 +65,7 @@ This project implements several security measures:
 - **Non-root Containers**: The custom image and Compose service run as uid 1000
 - **Read-only root filesystem**: Writable state is limited to the data volume and a tmpfs on `/tmp`
 - **Dropped capabilities**: `cap_drop: ALL` and `no-new-privileges`
-- **Resource limits**: Memory and CPU limits are set on the Compose service. The container heap is a percentage of that memory limit, not a fixed `-Xmx` that can exceed it
+- **Resource limits**: Memory and CPU limits are set on the Compose service. The container heap is a percentage of that memory limit, not a fixed `-Xmx` that can exceed it. A start with no limit still boots, on a heap capped between 1G and 4G, and the log says how to set one. Set a limit in production.
 - **Out of memory**: The JVM exits on the first `OutOfMemoryError` and writes a heap dump on the data volume
 - **Graceful stop**: SIGTERM becomes the server `stop` command so the world is saved before the process exits
 - **Minimal Base Images**: Alpine Linux for smaller attack surface, base images pinned by digest

@@ -73,18 +73,25 @@ export MEMORY_MODE="${MEMORY_MODE:-container}"
 export HEAP_DUMP_PATH="${HEAP_DUMP_PATH:-$DATA_DIR/dumps}"
 export GC_TYPE="${GC_TYPE:-g1gc}"
 
-if [[ "$MEMORY_MODE" == "container" && -r /sys/fs/cgroup/memory.max ]]; then
-    cgroup_memory=$(< /sys/fs/cgroup/memory.max)
-    if [[ "$cgroup_memory" == "max" ]]; then
-        echo "MEMORY_MODE=container sizes the heap as a percentage of the cgroup limit, but this container has no memory limit. Set one (--memory / mem_limit), or set MEMORY_MODE=fixed and MAX_RAM." >&2
-        exit 1
-    fi
+# jvm-opts.sh sizes the heap. A container limit keeps the percentage heap.
+# With no limit it picks a safe default, prints a banner on stderr, and still
+# starts. Bad MEMORY values fail here instead of launching Java.
+flags_file=$(mktemp)
+if ! /opt/minecraft/jvm-opts.sh >"$flags_file"; then
+    rm -f "$flags_file"
+    exit 1
 fi
-
 flags=()
 while IFS= read -r flag; do
-    flags+=("$flag")
-done < <(/opt/minecraft/jvm-opts.sh)
+    if [[ -n "$flag" ]]; then
+        flags+=("$flag")
+    fi
+done <"$flags_file"
+rm -f "$flags_file"
+if [[ ${#flags[@]} -eq 0 ]]; then
+    echo "No JVM flags produced" >&2
+    exit 1
+fi
 
 if [[ -n "${JVM_OPTS:-}" ]]; then
     # JVM_OPTS is an optional space-separated list of extra flags from the operator.

@@ -6,7 +6,9 @@
 # Host ports are overridable so this can run next to another server, e.g.
 #   MC_PORT=25566 RCON_PORT=25576 BEDROCK_PORT=19133 just run
 #
-# The heap is MAX_RAM_PERCENTAGE (default 75) of MC_MEMORY, not a fixed -Xmx.
+# just run passes --memory (MC_MEMORY, default 5G). The heap is then
+# MAX_RAM_PERCENTAGE (default 75) of that limit. With no limit, the image
+# boots on a safe default heap instead of refusing to start.
 # The world volume is mounted at /data/<level-name> so an existing world volume
 # (level.dat at its root) still lines up. Configs, logs, plugins, and heap
 # dumps live on the data volume.

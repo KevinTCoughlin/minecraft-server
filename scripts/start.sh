@@ -76,16 +76,19 @@ fi
 
 log_info "Using Java $JAVA_VERSION ($JAVA_CMD)"
 
-# Host starts use a fixed heap. Container starts (docker/entrypoint.sh) use
-# MaxRAMPercentage instead. MEMORY_MODE=container is available here too.
+# Host starts use a fixed heap (MIN_RAM/MAX_RAM, or MEMORY when it is set).
+# Container starts (docker/entrypoint.sh) use a percentage of the limit, or a
+# safe default heap when the container has no limit.
 MEMORY_MODE="${MEMORY_MODE:-fixed}"
 HEAP_DUMP_PATH="${HEAP_DUMP_PATH:-${SERVER_DIR}/dumps}"
 mkdir -p "$HEAP_DUMP_PATH"
 
-if [[ "$MEMORY_MODE" == "container" ]]; then
-    log_info "Starting PaperMC server with ${MAX_RAM_PERCENTAGE:-75.0}% of the container memory limit, GC: ${GC_TYPE^^}..."
-else
+# Container mode with no limit prints its own banner from jvm-opts.sh.
+# A fixed host start with no MEMORY knob still announces MIN_RAM and MAX_RAM.
+if [[ "$MEMORY_MODE" == "fixed" && -z "${MEMORY:-}" ]]; then
     log_info "Starting PaperMC server with ${MIN_RAM} - ${MAX_RAM} RAM, GC: ${GC_TYPE^^}..."
+else
+    log_info "Starting PaperMC server, GC: ${GC_TYPE^^}..."
 fi
 
 export MEMORY_MODE HEAP_DUMP_PATH GC_TYPE MIN_RAM MAX_RAM

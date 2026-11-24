@@ -116,8 +116,8 @@ services:
       PAPER_BUILD: "258"
       EULA: "TRUE"
 
-      # Empty MEMORY keeps itzg from adding -Xmx1G. The percentages become
-      # -XX:InitialRAMPercentage and -XX:MaxRAMPercentage of the cgroup limit.
+      # itzg treats MEMORY as an -Xmx size. Empty keeps the percentage heap.
+      # The custom image's MEMORY knob (2G, 4G, auto, 75%) is not read here.
       MEMORY: ""
       INIT_MEMORY: "75%"
       MAX_MEMORY: "75%"
