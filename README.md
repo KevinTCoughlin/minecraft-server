@@ -346,6 +346,16 @@ cd docker
 docker-compose up -d
 ```
 
+## Uptime alerts
+
+`.github/workflows/server-health.yml` checks the dev server every 15 minutes from GitHub-hosted runners. Java Edition must answer a server-list status handshake on TCP `25565` (`enable-status=true`, the default in `server/server.properties`). Bedrock must answer a RakNet unconnected ping on UDP `19132` (Geyser). A port is reported down only after a retry, so one lost packet does not open an issue.
+
+The check opens one issue titled "Server down", comments when the set of down ports changes (and at most every 6 hours while it stays down), and comments and closes that issue when both ports answer again.
+
+Set the repository variable `MC_HEALTH_HOST` to the server's public hostname or IPv4 address (Settings > Secrets and variables > Actions > Variables). A secret of the same name is used when the variable is empty. The issue text includes that address. Until one of them is set, the workflow prints a notice and skips, and it does not open an issue.
+
+Optional variables `MC_HEALTH_JAVA_PORT` (default `25565`) and `MC_HEALTH_BEDROCK_PORT` (default `19132`) override the ports.
+
 ## Backups
 
 ```bash

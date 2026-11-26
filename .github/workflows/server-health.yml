@@ -1,0 +1,471 @@
+# SPDX-License-Identifier: MIT
+# Scheduled health check for the public Paper + Geyser server.
+#
+# Every 15 minutes, from an ubuntu-latest runner: a Java Edition server-list
+# status handshake on TCP (default 25565), and a Bedrock/Geyser RakNet
+# unconnected ping on UDP (default 19132). A port is down only when every try
+# fails (default 2, so one miss does not open an issue). The runner already has
+# Python and the gh CLI, so there is no third-party action to pin. Permissions
+# are contents: read and issues: write.
+#
+# One issue titled "Server down" tracks state: opened on the first failure,
+# commented when the set of down ports changes or every 6 hours, closed on
+# recovery. The comment lists every port, up or down.
+#
+# Repository variable or secret (Settings > Secrets and variables > Actions):
+#   MC_HEALTH_HOST          required. Public hostname or IPv4. When neither the
+#                           variable nor the secret is set, the job prints a
+#                           notice and skips without opening an issue.
+#   MC_HEALTH_JAVA_PORT     optional. Default 25565.
+#   MC_HEALTH_BEDROCK_PORT  optional. Default 19132.
+#
+# MC_HEALTH_TRIES (default 2), MC_HEALTH_TIMEOUT (default 5 seconds) and
+# MC_HEALTH_GAP (default 10 seconds) tune the retries when set on the runner.
+#
+# Scheduled runs can start several minutes late. GitHub disables schedules in a
+# repository with no activity for 60 days (re-enable under Actions). The
+# workflow's own failure notification covers a broken check.
+name: Server health
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: server-health
+  cancel-in-progress: false
+
+env:
+  MC_HEALTH_HOST: ${{ vars.MC_HEALTH_HOST || secrets.MC_HEALTH_HOST }}
+  MC_HEALTH_JAVA_PORT: ${{ vars.MC_HEALTH_JAVA_PORT || '25565' }}
+  MC_HEALTH_BEDROCK_PORT: ${{ vars.MC_HEALTH_BEDROCK_PORT || '19132' }}
+  ISSUE_TITLE: Server down
+  ISSUE_LABEL: server-down
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query Java and Bedrock
+        id: probe
+        shell: python
+        run: |
+          # mc-server-health-probe-begin
+          # SPDX-License-Identifier: MIT
+          """Ask the Java and Bedrock ports whether they are up, and name the ones that are not.
+
+          MC_HEALTH_HOST is required (the workflow passes the MC_HEALTH_HOST variable, or
+          the secret of the same name). When it is empty this prints a notice and exits 0
+          so an unconfigured repository does not fail the schedule or open an issue.
+
+          MC_HEALTH_JAVA_PORT (default 25565) is a Minecraft Java server-list status
+          handshake on TCP: a handshake with next state status, then a status request, then
+          a status JSON response. An open port that does not complete that exchange is down.
+          MC_HEALTH_BEDROCK_PORT (default 19132) is a RakNet unconnected ping on UDP; the
+          pong must carry the RakNet magic and an MCPE or MCEE identity string.
+
+          MC_HEALTH_TRIES (default 2), MC_HEALTH_TIMEOUT (default 5 seconds) and
+          MC_HEALTH_GAP (default 10 seconds) tune the retries. A port is down only when
+          every try fails. A miss is reported on stdout and in GITHUB_OUTPUT; the process
+          still exits 0 so the following step can open or close the issue. Exit 1 is
+          reserved for a broken configuration.
+          """
+
+          import json
+          import os
+          import socket
+          import struct
+          import sys
+          import time
+
+          JAVA_PROTOCOL = 769
+          MAX_PACKET = 1048576
+          MAGIC = bytes.fromhex("00ffff00fefefefefdfdfdfd12345678")
+          DETAIL_END = "HEALTH_DETAIL"
+
+
+          def fail(message):
+              print(message, file=sys.stderr)
+              raise SystemExit(1)
+
+
+          def env_int(name, default):
+              raw = os.environ.get(name, "").strip()
+              if not raw:
+                  return default
+              try:
+                  value = int(raw)
+              except ValueError:
+                  fail(f"{name} must be an integer, got {raw!r}")
+              if value < 1:
+                  fail(f"{name} must be at least 1, got {raw!r}")
+              return value
+
+
+          def env_seconds(name, default, allow_zero):
+              raw = os.environ.get(name, "").strip()
+              if not raw:
+                  return default
+              try:
+                  value = float(raw)
+              except ValueError:
+                  fail(f"{name} must be a number, got {raw!r}")
+              if allow_zero and value < 0:
+                  fail(f"{name} must be zero or positive, got {raw!r}")
+              if not allow_zero and value <= 0:
+                  fail(f"{name} must be positive, got {raw!r}")
+              return value
+
+
+          def port_from_env(name, default):
+              raw = os.environ.get(name, "").strip() or str(default)
+              if not raw.isdigit():
+                  fail(f"{name} must be an integer, got {raw!r}")
+              port = int(raw)
+              if not 1 <= port <= 65535:
+                  fail(f"{name} {port} is outside 1-65535")
+              return port
+
+
+          def one_line(text, limit):
+              cleaned = []
+              for char in text:
+                  if char.isprintable() and char not in "\r\n":
+                      cleaned.append(char)
+                  else:
+                      cleaned.append(" ")
+              return " ".join("".join(cleaned).split())[:limit]
+
+
+          def encode_varint(value):
+              out = bytearray()
+              while True:
+                  byte = value & 0x7F
+                  value >>= 7
+                  if value:
+                      byte |= 0x80
+                  out.append(byte)
+                  if value == 0:
+                      return bytes(out)
+
+
+          def encode_string(text):
+              data = text.encode("utf-8")
+              return encode_varint(len(data)) + data
+
+
+          def encode_packet(packet_id, data):
+              payload = encode_varint(packet_id) + data
+              return encode_varint(len(payload)) + payload
+
+
+          def read_exact(sock, size):
+              buf = bytearray()
+              while len(buf) < size:
+                  chunk = sock.recv(size - len(buf))
+                  if not chunk:
+                      return None
+                  buf.extend(chunk)
+              return bytes(buf)
+
+
+          def read_varint(sock):
+              value = 0
+              for shift in range(0, 35, 7):
+                  raw = read_exact(sock, 1)
+                  if raw is None:
+                      return None
+                  byte = raw[0]
+                  value |= (byte & 0x7F) << shift
+                  if not byte & 0x80:
+                      return value
+              return None
+
+
+          def varint_at(buf, index):
+              value = 0
+              for shift in range(0, 35, 7):
+                  if index >= len(buf):
+                      return None
+                  byte = buf[index]
+                  index += 1
+                  value |= (byte & 0x7F) << shift
+                  if not byte & 0x80:
+                      return value, index
+              return None
+
+
+          def status_fields(data):
+              if not isinstance(data, dict):
+                  return None
+              if "version" not in data and "players" not in data:
+                  return None
+              name = ""
+              version = data.get("version")
+              if isinstance(version, dict) and isinstance(version.get("name"), str):
+                  name = one_line(version["name"], 128)
+              extra = ""
+              players = data.get("players")
+              if isinstance(players, dict):
+                  online = players.get("online")
+                  maximum = players.get("max")
+                  if type(online) is int and type(maximum) is int:
+                      extra = f"players {online}/{maximum}"
+              return {"name": name, "extra": extra, "via": "status"}
+
+
+          def read_status(sock):
+              length = read_varint(sock)
+              if length is None or length < 2 or length > MAX_PACKET:
+                  return None
+              payload = read_exact(sock, length)
+              if payload is None:
+                  return None
+              parsed = varint_at(payload, 0)
+              if parsed is None:
+                  return None
+              packet_id, index = parsed
+              if packet_id != 0:
+                  return None
+              parsed = varint_at(payload, index)
+              if parsed is None:
+                  return None
+              size, index = parsed
+              if size < 2 or index + size > len(payload):
+                  return None
+              try:
+                  data = json.loads(payload[index:index + size].decode("utf-8"))
+              except (UnicodeError, json.JSONDecodeError):
+                  return None
+              return status_fields(data)
+
+
+          def query_java(host, port, timeout):
+              handshake = encode_packet(
+                  0,
+                  encode_varint(JAVA_PROTOCOL)
+                  + encode_string(host)
+                  + struct.pack(">H", port)
+                  + encode_varint(1),
+              )
+              request = encode_packet(0, b"")
+              sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+              sock.settimeout(timeout)
+              try:
+                  sock.connect((host, port))
+                  sock.sendall(handshake + request)
+                  return read_status(sock)
+              except OSError:
+                  return None
+              finally:
+                  sock.close()
+
+
+          def pong_fields(data):
+              if len(data) < 35 or data[0] != 0x1C or data[17:33] != MAGIC:
+                  return None
+              length = int.from_bytes(data[33:35], "big")
+              if length > len(data) - 35:
+                  return None
+              try:
+                  text = data[35:35 + length].decode("utf-8")
+              except UnicodeError:
+                  return None
+              if not (text.startswith("MCPE;") or text.startswith("MCEE;")):
+                  return None
+              parts = text.split(";")
+              name = one_line(parts[1], 128) if len(parts) > 1 else ""
+              version = one_line(parts[3], 64) if len(parts) > 3 else ""
+              extra = []
+              if version:
+                  extra.append(version)
+              if len(parts) > 5 and parts[4].isdigit() and parts[5].isdigit():
+                  extra.append(f"players {parts[4]}/{parts[5]}")
+              return {"name": name, "extra": ", ".join(extra), "via": "raknet"}
+
+
+          def query_bedrock(host, port, timeout):
+              ping = (
+                  b"\x01"
+                  + int(time.time() * 1000).to_bytes(8, "big")
+                  + MAGIC
+                  + os.urandom(8)
+              )
+              sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+              sock.settimeout(timeout)
+              try:
+                  sock.sendto(ping, (host, port))
+                  data, _addr = sock.recvfrom(4096)
+              except OSError:
+                  return None
+              finally:
+                  sock.close()
+              return pong_fields(data)
+
+
+          def describe(result, why):
+              if result is None:
+                  return f"down: {why}"
+              bits = []
+              if result["name"]:
+                  bits.append(result["name"])
+              if result["extra"]:
+                  bits.append(result["extra"])
+              if bits:
+                  return "up: " + ", ".join(bits)
+              return f"up: answered {result['via']}"
+
+
+          def write_output(name, value):
+              path = os.environ.get("GITHUB_OUTPUT", "").strip()
+              if not path:
+                  return
+              with open(path, "a", encoding="utf-8") as handle:
+                  if "\n" in value or value == DETAIL_END:
+                      body = "\n".join(
+                          line if line != DETAIL_END else f"{DETAIL_END}."
+                          for line in value.split("\n")
+                      )
+                      handle.write(f"{name}<<{DETAIL_END}\n{body}\n{DETAIL_END}\n")
+                  else:
+                      handle.write(f"{name}={value}\n")
+
+
+          def notice(message):
+              print(f"::notice title=Server health::{message}", flush=True)
+              summary = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
+              if not summary:
+                  return
+              with open(summary, "a", encoding="utf-8") as handle:
+                  handle.write(message + "\n")
+
+
+          def main():
+              host = os.environ.get("MC_HEALTH_HOST", "").strip()
+              if not host:
+                  notice(
+                      "MC_HEALTH_HOST is unset. Add it under Settings > Secrets and "
+                      "variables > Actions > Variables, or as a secret of the same name. "
+                      "Skipping the check."
+                  )
+                  write_output("skipped", "true")
+                  write_output("down", "")
+                  write_output("detail", "")
+                  return
+              if any(char.isspace() for char in host):
+                  fail(f"MC_HEALTH_HOST must not contain whitespace, got {host!r}")
+              if len(host.encode("utf-8")) > 255:
+                  fail("MC_HEALTH_HOST is longer than 255 bytes")
+
+              java_port = port_from_env("MC_HEALTH_JAVA_PORT", 25565)
+              bedrock_port = port_from_env("MC_HEALTH_BEDROCK_PORT", 19132)
+              tries = env_int("MC_HEALTH_TRIES", 2)
+              timeout = env_seconds("MC_HEALTH_TIMEOUT", 5, allow_zero=False)
+              gap = env_seconds("MC_HEALTH_GAP", 10, allow_zero=True)
+
+              down = []
+              lines = []
+              checks = (
+                  (java_port, query_java, "no Java status response"),
+                  (bedrock_port, query_bedrock, "no RakNet unconnected pong"),
+              )
+              for port, query, why in checks:
+                  result = None
+                  for attempt in range(tries):
+                      result = query(host, port, timeout)
+                      if result is not None:
+                          break
+                      if attempt + 1 < tries and gap:
+                          time.sleep(gap)
+                  text = describe(result, why)
+                  print(f"{host}:{port} {text}", flush=True)
+                  lines.append(f"- {port} {text}")
+                  if result is None:
+                      down.append(str(port))
+
+              write_output("skipped", "false")
+              write_output("tries", str(tries))
+              write_output("down", " ".join(down))
+              write_output("detail", "\n".join(lines))
+
+
+          if __name__ == "__main__":
+              main()
+          # mc-server-health-probe-end
+
+      - name: Open, update or close the issue
+        if: steps.probe.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOWN: ${{ steps.probe.outputs.down }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          SKIPPED: ${{ steps.probe.outputs.skipped }}
+          TRIES: ${{ steps.probe.outputs.tries }}
+        run: |
+          # mc-server-health-issue-begin
+          set -euo pipefail
+
+          if [ "${SKIPPED:-}" = "true" ]; then
+            exit 0
+          fi
+
+          ISSUE_TITLE="${ISSUE_TITLE:?}"
+          ISSUE_LABEL="${ISSUE_LABEL:?}"
+          GITHUB_REPOSITORY="${GITHUB_REPOSITORY:?}"
+          GITHUB_SERVER_URL="${GITHUB_SERVER_URL:?}"
+          GITHUB_RUN_ID="${GITHUB_RUN_ID:?}"
+          MC_HEALTH_HOST="${MC_HEALTH_HOST:?}"
+          MC_HEALTH_JAVA_PORT="${MC_HEALTH_JAVA_PORT:?}"
+          MC_HEALTH_BEDROCK_PORT="${MC_HEALTH_BEDROCK_PORT:?}"
+          DOWN="${DOWN-}"
+          DETAIL="${DETAIL-}"
+          TRIES="${TRIES:-2}"
+
+          gh label create "$ISSUE_LABEL" --color B60205 --description "Minecraft server unreachable" \
+            --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$ISSUE_LABEL" --state open \
+            --search "\"${ISSUE_TITLE}\" in:title" --json number --jq '.[0].number // empty')
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          now=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+          if [ -z "$DOWN" ]; then
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+                --body "Recovered at ${now}: Java ${MC_HEALTH_JAVA_PORT} and Bedrock ${MC_HEALTH_BEDROCK_PORT} on ${MC_HEALTH_HOST} answer again. [Run](${run_url})
+
+          ${DETAIL}"
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --reason completed
+            fi
+            exit 0
+          fi
+
+          body="Down at ${now}: no Java status or RakNet ping reply from ${MC_HEALTH_HOST} on port(s): **${DOWN}** after ${TRIES} tries. [Run](${run_url})
+
+          ${DETAIL}
+
+          Check the host, then mc-server-manager status. Java Edition is TCP ${MC_HEALTH_JAVA_PORT} (server-list status). Bedrock/Geyser is UDP ${MC_HEALTH_BEDROCK_PORT} (RakNet unconnected ping)."
+          if [ -z "$number" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --label "$ISSUE_LABEL" --body "$body"
+            exit 0
+          fi
+          # Comment when the set of down ports changed, or at most every 6 hours.
+          last=$(gh issue view "$number" --repo "$GITHUB_REPOSITORY" --json comments \
+            --jq '.comments | map(select(.body | startswith("Down at"))) | last // empty')
+          last_ports=$(printf '%s\n' "$last" | sed -n 's/.*port(s): \*\*\([0-9 ]*\)\*\*.*/\1/p' | head -n 1)
+          last_at=$(printf '%s\n' "$last" | jq -r '.createdAt // empty' 2>/dev/null || true)
+          age=999999
+          if [ -n "$last_at" ]; then
+            now_s=$(date -u +%s)
+            then_s=$(date -u -d "$last_at" +%s)
+            age=$((now_s - then_s))
+          fi
+          if [ "$last_ports" != "$DOWN" ] || [ "$age" -ge 21600 ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          fi
+          # mc-server-health-issue-end
