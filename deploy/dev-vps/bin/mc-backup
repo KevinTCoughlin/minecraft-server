@@ -1,0 +1,80 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Back up the minecraft-dev data dir (worlds, plugins and their data, configs,
+# whitelist/ops) to ~/backups/minecraft/<prefix>-<timestamp>.tar.zst.
+# While the server runs: save-off, save-all flush, archive, save-on.
+# Keeps the newest ${MC_BACKUP_KEEP:-7} archives per prefix.
+#
+#   mc-backup                 daily archive (prefix "daily")
+#   mc-backup --tag pre-update  archive before an update (own retention)
+#   mc-backup --no-lock       caller already holds the maintenance lock
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+prefix=daily
+lock=1
+while (($#)); do
+    case "$1" in
+        --tag) prefix="$2"; shift 2 ;;
+        --no-lock) lock=0; shift ;;
+        *) echo "usage: mc-backup [--tag NAME] [--no-lock]" >&2; exit 2 ;;
+    esac
+done
+[[ "${prefix}" =~ ^[a-z0-9-]+$ ]] || { echo "bad tag" >&2; exit 2; }
+((lock)) && mc_lock
+
+KEEP="${MC_BACKUP_KEEP:-7}"
+mkdir -p "${MC_BACKUP_DIR}"
+chmod 700 "${MC_BACKUP_DIR}"
+ts=$(date +%Y%m%d-%H%M%S)
+out="${MC_BACKUP_DIR}/${prefix}-${ts}.tar.zst"
+
+saved_off=0
+save_on() {
+    if ((saved_off)); then
+        "${MC_BIN}/mc-rcon" save-on >/dev/null 2>&1 || log "warning: save-on failed"
+        saved_off=0
+    fi
+}
+trap save_on EXIT
+
+# Pause Chunky first so the archive is not mid-write. We hold the
+# maintenance lock for the rest of this job; mc-chunky-idle will not
+# resume pregen until the lock is dropped, and only if humans=0.
+if mc_running; then
+    if "${MC_BIN}/mc-rcon" chunky pause >/dev/null 2>&1; then
+        log "paused Chunky before backup"
+    else
+        log "Chunky pause skipped (plugin missing or no task)"
+    fi
+fi
+
+if mc_running && "${MC_BIN}/mc-rcon" save-off >/dev/null 2>&1; then
+    saved_off=1
+    "${MC_BIN}/mc-rcon" save-all flush >/dev/null
+    log "save-off and save-all flush done"
+else
+    log "server not running or RCON down; archiving files as they are"
+fi
+
+tar -C "${MC_DATA}" --zstd \
+    --exclude=./cache --exclude=./libraries --exclude=./versions \
+    --exclude=./dumps --exclude=./logs --exclude='./crash-reports' \
+    -cf "${out}.part" .
+save_on
+mv "${out}.part" "${out}"
+chmod 600 "${out}"
+
+# Verify the archive reads back and contains level.dat.
+listing=$(tar --zstd -tf "${out}")
+entries=$(wc -l <<<"${listing}")
+grep -q '/level\.dat$' <<<"${listing}" || { log "error: ${out} has no level.dat"; exit 1; }
+log "backup ${out} ($(du -h "${out}" | cut -f1), ${entries} entries) verified"
+
+# Retention per prefix.
+mapfile -t old < <(ls -1t "${MC_BACKUP_DIR}/${prefix}-"*.tar.zst 2>/dev/null | tail -n +$((KEEP + 1)))
+for f in "${old[@]}"; do
+    rm -f -- "${f}"
+    log "pruned ${f}"
+done

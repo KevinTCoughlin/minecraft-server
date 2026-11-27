@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# Daily at 03:30 America/Los_Angeles, before the update window. Persistent so a
+# VPS that was off still takes a backup after it boots.
+[Unit]
+Description=Daily backup of minecraft-dev
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 America/Los_Angeles
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
