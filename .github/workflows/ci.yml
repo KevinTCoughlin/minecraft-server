@@ -80,13 +80,13 @@ jobs:
           bash -n setup.sh scripts/*.sh docker/entrypoint.sh
           shellcheck setup.sh scripts/*.sh tests/*.sh docker/entrypoint.sh
           # deploy/dev-vps: ops kit for the dev VPS (lint only, never run in CI)
-          bash -n deploy/dev-vps/bin/mc-backup deploy/dev-vps/bin/mc-chunky-idle deploy/dev-vps/bin/mc-lib.sh \
-            deploy/dev-vps/bin/mc-players deploy/dev-vps/bin/mc-plugin-update deploy/dev-vps/bin/mc-restore-test \
-            deploy/dev-vps/bin/mc-server-update deploy/dev-vps/host/mc deploy/dev-vps/host/sbin/*
-          shellcheck -x --severity=warning deploy/dev-vps/bin/mc-backup deploy/dev-vps/bin/mc-chunky-idle \
-            deploy/dev-vps/bin/mc-lib.sh deploy/dev-vps/bin/mc-players deploy/dev-vps/bin/mc-plugin-update \
-            deploy/dev-vps/bin/mc-restore-test deploy/dev-vps/bin/mc-server-update \
-            deploy/dev-vps/host/mc deploy/dev-vps/host/sbin/* deploy/dev-vps/host/50-mc-dev
+          d=deploy/dev-vps
+          sh_files=("$d"/bin/mc-backup "$d"/bin/mc-chunky-idle "$d"/bin/mc-lib.sh "$d"/bin/mc-players \
+            "$d"/bin/mc-plugin-update "$d"/bin/mc-r2-restore-test "$d"/bin/mc-r2-upload "$d"/bin/mc-restore-test \
+            "$d"/bin/mc-server-update "$d"/bin/mc-world "$d"/host/mc "$d"/host/50-mc-dev "$d"/host/sbin/* \
+            "$d"/world/*.env)
+          bash -n "${sh_files[@]}"
+          shellcheck -x --severity=warning "${sh_files[@]}"
           python3 -m py_compile deploy/dev-vps/bin/mc-rcon
 
       - name: Publish test report

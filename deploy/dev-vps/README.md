@@ -18,7 +18,13 @@ Safety rules baked into every job: nothing restarts or reboots the server unless
 | `quadlet/minecraft-dev.container` | `~mc/.config/containers/systemd/` | Quadlet unit for the server container |
 | `systemd/*.service`, `*.timer` | `~mc/.config/systemd/user/` | server update, plugin update, backup, restore test, Chunky idle |
 | `bin/*` | `~mc/.local/bin/` | `mc-rcon`, `mc-players`, `mc-lib.sh`, `mc-server-update`, `mc-plugin-update`, `mc-backup`, `mc-restore-test`, `mc-chunky-idle` |
-| `env/*.example` | `~mc/.config/minecraft-dev/` | templates for `rcon.env` (secret) and `update.env` (optional) |
+| `bin/mc-r2-upload`, `bin/mc-r2-restore-test` | `~mc/.local/bin/` | off-box backups to Cloudflare R2 (rclone) and a download-and-verify test |
+| `bin/mc-world` | `~mc/.local/bin/` | swap between worlds (one runs at a time) |
+| `systemd/mc-r2-upload.*` | `~mc/.config/systemd/user/` | R2 upload service and timer; `mc-r2-upload.service.d/` pins it to the dev world |
+| `world/*.env` | `~mc/.config/mc-world/` | per-world settings (unit, data dir, backup dir, feature flags) |
+| `quadlet/minecraft-dad.container` | `~mc/.config/containers/systemd/` | swap partner world (mc-dad-server image) |
+| `quadlet/minecraft-d*.container.d/` | `~mc/.config/containers/systemd/` | drop-ins so only the active world starts at boot |
+| `env/*.example` | `~mc/.config/minecraft-dev/` (`rclone.conf` goes in `~mc/.config/mc-r2/`) | templates for `rcon.env`, `rclone.conf` (both secret) and `update.env` (optional) |
 | `host/mc` | `/usr/local/bin/mc` | root admin kit: `mc status\|logs\|players\|rcon\|backup\|restore-test\|update\|plugin-update\|reboot-check\|motd` |
 | `host/sbin/as-mc` | `/usr/local/sbin/as-mc` | run a command as `mc` with its user-session environment |
 | `host/sbin/mc-reboot-if-idle` | `/usr/local/sbin/` | reboot for pending updates only when idle |
@@ -28,10 +34,10 @@ Safety rules baked into every job: nothing restarts or reboots the server unless
 
 ## Secrets and host-specific values
 
-- `rcon.env` holds `RCON_PASSWORD` and is never committed. Use `env/rcon.env.example` as the template.
+- `rcon.env` holds `RCON_PASSWORD` and `rclone.conf` holds the R2 API key. Neither is ever committed. Use the `env/*.example` templates.
 - Nothing in this directory contains passwords, keys, tokens or device codes. Xbox broadcast tokens live
   under the server data dir on the host and are covered by 0600 backups.
-- The host IP, SSH keys and player identifiers are intentionally not recorded here.
+- The host IP, SSH keys, player identifiers and the Cloudflare account id are intentionally not recorded here.
 
 ---
 
@@ -52,6 +58,7 @@ the system user `mc` (nologin, lingering on). This directory is the copy of
 | `~/minecraft-dev/data/` | bind-mounted at `/data`: world, plugins, configs, whitelist/ops, logs |
 | `~/backups/minecraft/` | `daily-*`, `pre-update-*`, `pre-plugin-*` `.tar.zst` (7 kept per prefix), mode 0700 |
 | `~/.local/state/mc-server-update/`, `mc-plugin-update/` | history, previous Quadlet, downloads, stashed jars |
+| `~/.config/mc-world/*.env`, `~/.local/bin/mc-world` | per-world settings and the swap command; see "Swappable worlds" below |
 
 Root helper: `/usr/local/sbin/as-mc <cmd>` runs a command as mc with its user-session env
 (XDG_RUNTIME_DIR, DBUS). Example: `as-mc systemctl --user status minecraft-dev`.
@@ -74,7 +81,7 @@ Root helper: `/usr/local/sbin/as-mc <cmd>` runs a command as mc with its user-se
    mkdir -p ~/.local/bin ~/.config/systemd/user ~/.config/containers/systemd ~/.config/minecraft-dev \
             ~/minecraft-dev/data/plugins ~/backups/minecraft
    install -m 0755 ~/deploy/bin/* ~/.local/bin/ && chmod 644 ~/.local/bin/mc-lib.sh
-   cp ~/deploy/systemd/* ~/.config/systemd/user/
+   cp -r ~/deploy/systemd/* ~/.config/systemd/user/
    cp ~/deploy/quadlet/minecraft-dev.container ~/.config/containers/systemd/
    (umask 077; printf 'RCON_PASSWORD=%s\n' "$(head -c 32 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 32)" \
        > ~/.config/minecraft-dev/rcon.env)
@@ -94,7 +101,8 @@ Root helper: `/usr/local/sbin/as-mc <cmd>` runs a command as mc with its user-se
 7. Start: `systemctl --user daemon-reload && systemctl --user start minecraft-dev`
    (the Quadlet's `[Install] WantedBy=default.target` starts it at boot via lingering).
 8. DeathBanPro: `mc-plugin-update --now`.
-9. Timers: `systemctl --user enable --now mc-server-update.timer mc-plugin-update.timer mc-backup.timer mc-restore-test.timer mc-chunky-idle.timer`.
+9. Timers: `systemctl --user enable --now mc-server-update.timer mc-plugin-update.timer mc-backup.timer mc-restore-test.timer mc-chunky-idle.timer mc-r2-upload.timer`
+    (the last one needs the R2 credentials, see Off-box backups; the swappable-worlds install steps are further down).
 10. Host pieces, as root (sources in `host/`): `install -m 0755 host/mc /usr/local/bin/mc`;
     `install -m 0755 host/sbin/as-mc host/sbin/mc-reboot-if-idle /usr/local/sbin/`;
     `install -m 0755 host/50-mc-dev /etc/update-motd.d/50-mc-dev`;
@@ -205,3 +213,90 @@ server as a joinable session from a bot Xbox account. Sign in once with a DEDICA
 Tokens are cached in `plugins/Geyser-Spigot/extensions/mcxboxbroadcast/` (mode 700; included in backups,
 which are 0600). Then on the Xbox: add the alt's gamertag as a friend, Minecraft > Play > Friends tab,
 join the server under Joinable Friends. Whitelist still applies.
+
+## Off-box backups (Cloudflare R2)
+
+- `mc-r2-upload` (user timer `mc-r2-upload.timer`, 03:45 PT +3 min, after the 03:30 `mc-backup`) uploads the newest
+  `daily-*.tar.zst` to R2 bucket `mc-dev-backups` (private bucket, default jurisdiction; name overridable with `MC_R2_BUCKET`)
+  under `daily/`, with a `.sha256` sidecar. It takes the maintenance lock only to pick and hard-link the archive,
+  then uploads unlocked, so it never makes the 04:05/04:15 updaters skip.
+- Retention (script prune, exact): newest 7 `daily/`, newest 3 `weekly/` (a server-side copy made when the newest
+  weekly is over 6 days old). Each archive is about 0.9 GB (Chunky pre-generated terrain barely compresses), so
+  10 archives is about 9.4 GB, inside R2 free 10 GB. A bucket lifecycle rule (daily/ 21 d, weekly/ 60 d) is a safety net.
+  For 14 daily + 8 weekly set `MC_R2_DAILY_KEEP=14 MC_R2_WEEKLY_KEEP=8` in the service (about 20 GB, roughly $0.15/month).
+- Credentials: `/home/mc/.config/mc-r2/rclone.conf` (0600, user mc, rclone remote `r2`, S3 endpoint
+  `https://<account id>.r2.cloudflarestorage.com`). The key is a bucket-scoped R2 API token (object read/write on
+  `mc-dev-backups` only). Never commit it. To rotate: mint a new token in the Cloudflare dashboard (R2 > Manage API
+  tokens), edit the two key lines in that file, run `mc r2-upload`.
+- Install the credentials from the template: `install -d -m 700 ~/.config/mc-r2 && install -m 600 ~/deploy/env/rclone.conf.example ~/.config/mc-r2/rclone.conf`,
+  then fill in the account id, access key id and secret. The real file is never committed.
+- Commands: `mc r2-upload` (run now), `mc r2-restore-test [weekly]` (download newest to a scratch dir, check sha256,
+  zstd/tar, level.dat; never touches the live world). `mc status` shows both results.
+- Disaster restore: `apt install rclone zstd`, put the rclone.conf in place, `rclone copyto r2:mc-dev-backups/daily/<name> .`,
+  verify with the `.sha256`, stop the server, `tar --zstd -xf <name> -C ~/minecraft-dev/data` (move the old data aside first).
+
+## Swappable worlds: dev and dad
+
+The box is 4 GB and each server runs a 2G heap on the same ports (25565, 19132 tcp+udp, RCON
+127.0.0.1:25575), so exactly one world runs at a time. Two worlds exist:
+
+| World | Unit | Data | Image |
+|---|---|---|---|
+| `dev` (default) | `minecraft-dev.service` | `~/minecraft-dev/data` | `ghcr.io/kevintcoughlin/minecraft-server` (auto-updated) |
+| `dad` | `minecraft-dad.service` | `~/minecraft-dad/data` (a full copy of the image's `/minecraft`) | `ghcr.io/kevintcoughlin/mc-dad-server:sha-5de0e64@sha256:2d61855b...` (pinned by hand) |
+
+`dad` is the mc-dad-server image: Paper 26.3, Geyser + Floodgate, Parkour, WorldEdit, Multiverse-Core. Its own
+world (`~/minecraft-dad/data/worlds/world`) is generated on first start. whitelist.json and ops.json were copied
+from dev; view/simulation distance 8/6. It uses the same `rcon.env` password as dev, so `mc-rcon`, `mc-players`
+and `mc-backup` work unchanged. Floodgate/Geyser keys, Parkour courses and Multiverse worlds are per world.
+
+Usage (root: `mc world ...`; mc: `mc-world ...`):
+
+```
+mc world                 active world, both units, data sizes, players, last swaps
+mc world dad             swap to dad   (alias: mc swap dad)
+mc world dev             swap back
+mc world --dry-run dad   check preconditions only
+```
+
+A swap refuses unless `mc-players` says humans=0 (unknown = busy; exit 3), refuses while another maintenance
+job holds the flock (exit 75), backs up the current world (`pre-swap-*` in that world's backup dir), stops it,
+sets `~/.local/state/mc-world/active`, starts the other unit and waits for unit active + RCON + "Done (".
+If the new world is not healthy it stops it and starts the previous one again. World data is never moved or
+modified by a swap. Expect about 2 min of downtime (dev is quicker; dad takes about 30 s to stop and 1-2 min
+to start).
+
+How it is wired:
+- `~/.config/mc-world/<name>.env` per world: `MC_UNIT MC_QUADLET MC_DATA MC_BACKUP_DIR MC_BACKUP_EXCLUDES
+  MC_CHUNKY MC_UPDATES`. `mc-lib.sh` loads the active world's file, so `mc-backup`, `mc-restore-test`,
+  `mc-chunky-idle`, `mc-server-update`, `mc-plugin-update` and `mc-r2-upload` all follow the active world.
+- Per-world backups: dev in `~/backups/minecraft`, dad in `~/backups/minecraft-dad` (dad excludes `server.jar`
+  and `app-cds.jsa`; restore by re-seeding the image files, see below). The 03:30 backup timer backs up whichever
+  world is active. `~/.local/state/mc-restore-test/last` is shared (last test of either world).
+- Chunky idle timer (`MC_CHUNKY=1`) and the updaters (`MC_UPDATES=1`) are dev-only; they exit quietly while dad is
+  active. `mc-r2-upload` is pinned to dev with a unit drop-in (`MC_WORLD=dev`) so dad backups never mix into the
+  dev R2 bucket; it will report a stale-backup failure if dad stays active more than 36 h.
+- Boot: both Quadlets are `WantedBy=default.target`; each has an inline `ExecCondition` on the active file
+  (drop-ins in `~/.config/containers/systemd/minecraft-{dev,dad}.container.d/10-world.conf`), so only the active
+  world starts after a reboot. A missing state file means dev. `mc-reboot-if-idle` counts players on either unit.
+- The shared maintenance lock is the same file as before.
+
+Install (as mc, after `deploy/` is in place):
+```
+mkdir -p ~/.config/mc-world ~/.local/state/mc-world ~/backups/minecraft-dad
+cp ~/deploy/world/*.env ~/.config/mc-world/ && install -m 0755 ~/deploy/bin/mc-world ~/.local/bin/
+cp ~/deploy/quadlet/minecraft-dad.container ~/.config/containers/systemd/
+cp -r ~/deploy/quadlet/minecraft-d*.container.d ~/.config/containers/systemd/
+echo dev > ~/.local/state/mc-world/active; systemctl --user daemon-reload
+# seed dad from the pinned image, then whitelist/ops from dev and view-distance=8, simulation-distance=6:
+IMG=$(sed -n 's/^Image=//p' ~/.config/containers/systemd/minecraft-dad.container)
+mkdir -p ~/minecraft-dad/data && podman run --rm --userns=keep-id:uid=1000,gid=1000 --entrypoint cp \
+  -v ~/minecraft-dad/data:/seed "$IMG" -a /minecraft/. /seed/
+```
+Root side: `/usr/local/bin/mc` (adds `world`/`swap`) and `/usr/local/sbin/mc-reboot-if-idle` are in `deploy/host/`.
+
+Notes: the dad image exits 143 after its graceful SIGTERM; the Quadlet sets `SuccessExitStatus=143` so a
+stop is not "failed". Its shutdown countdown makes a stop take about 30 s. To bump dad's image, edit the
+`Image=` line (tag@digest) while dev is active, then `mc world dad` will use it; the jar in `~/minecraft-dad/data`
+is a copy, so also re-seed `server.jar`, `app-cds.jsa`, `libraries`, `versions` and `plugins/*.jar` from the new
+image. Memory: never start both; the swap script refuses to start the target while any `minecraft-*` container runs.
