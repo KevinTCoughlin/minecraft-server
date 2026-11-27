@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# Server health workflow: Java status and Bedrock RakNet are queried, a miss
-# counts only after a retry, and the issue opens, updates and closes from the
-# set of ports that failed. An unset MC_HEALTH_HOST skips with a notice.
+# Server health workflow: Java status and Bedrock (NetherNet signaling, with a
+# RakNet fallback) are queried, a miss counts only after a retry, and the issue
+# opens, updates and closes from the set of ports that failed. An unset
+# MC_HEALTH_HOST skips with a notice.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -55,6 +56,12 @@ assert_contains "health workflow defaults the java port" \
     "${workflow}" "MC_HEALTH_JAVA_PORT || '25565'"
 assert_contains "health workflow defaults the bedrock port" \
     "${workflow}" "MC_HEALTH_BEDROCK_PORT || '19132'"
+assert_contains "health workflow defaults the bedrock mode" \
+    "${workflow}" "MC_HEALTH_BEDROCK_MODE || 'nethernet'"
+assert_contains "health workflow describes NetherNet signaling" \
+    "${workflow}" "NetherNet HTTP, any status"
+assert_contains "health workflow keeps the RakNet fallback" \
+    "${workflow}" "A RakNet unconnected ping on UDP"
 assert_contains "health workflow runs every 15 minutes" \
     "${workflow}" '*/15 * * * *'
 assert_contains "health workflow can be run on demand" \
@@ -181,7 +188,7 @@ run_issue() {
         bash "${WORK}/issue.sh" > "${WORK}/issue.out" 2> "${WORK}/issue.err"
 }
 
-detail=$'- 25565 up: Paper 26.3, players 1/20\n- 19132 down: no RakNet unconnected pong'
+detail=$'- 25565 up: Paper 26.3, players 1/20\n- 19132 down: no NetherNet HTTP response or RakNet unconnected pong'
 
 printf '%s\n' '{"comments":[]}' > "${WORK}/view.json"
 run_issue "" "" "${detail}" "true"
@@ -202,7 +209,9 @@ assert_eq "first failure opens one issue" "create" "$(cat "${WORK}/actions")"
 body=$(cat "${WORK}/body")
 assert_contains "failure names the dead port" "${body}" "port(s): **19132**"
 assert_contains "failure shows the live port" "${body}" "25565 up: Paper 26.3"
-assert_contains "failure shows the dead port" "${body}" "19132 down: no RakNet unconnected pong"
+assert_contains "failure shows the dead port" "${body}" "19132 down: no NetherNet HTTP response or RakNet unconnected pong"
+assert_contains "failure describes NetherNet signaling" "${body}" "NetherNet HTTP, any status"
+assert_contains "failure keeps the RakNet fallback" "${body}" "RakNet unconnected ping on UDP"
 assert_contains "failure still points at the run" "${body}" "actions/runs/99"
 assert_contains "failure names the status command" "${body}" "mc-server-manager status"
 assert_contains "failure says how many tries" "${body}" "after 2 tries"
