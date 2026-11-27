@@ -1,0 +1,49 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Reboot for pending package updates (kernel, libc, ...) only when nobody is on
+# the Minecraft dev server and nobody is logged in over SSH. Mirrors
+# cs-server's cs-reboot-if-idle.
+#
+#   mc-reboot-if-idle             reboot if needed and idle
+#   mc-reboot-if-idle --dry-run   print the decision, never reboot
+#
+# A server that is not running is ignored. A server that runs but whose player
+# count cannot be read (RCON down) blocks the reboot. MC_REBOOT_ASSUME_REQUIRED=1
+# skips the /var/run/reboot-required check (tests).
+set -euo pipefail
+DRY=0
+[[ "${1:-}" == "--dry-run" ]] && DRY=1
+REQUIRED_FILE="${MC_REBOOT_REQUIRED_FILE:-/var/run/reboot-required}"
+LOCK="${MC_LOCK:-/home/mc/.local/state/minecraft-dev/maintenance.lock}"
+say() { logger -t mc-reboot-if-idle -- "$*"; printf '%s\n' "$*"; }
+
+# Shared with mc-server-update, mc-plugin-update and mc-backup.
+if [[ -e "${LOCK}" ]]; then
+    exec 9>>"${LOCK}"
+    flock -n 9 || { say "another maintenance job is running; not rebooting"; exit 0; }
+fi
+if [[ ! -e "${REQUIRED_FILE}" && "${MC_REBOOT_ASSUME_REQUIRED:-0}" != "1" ]]; then
+    say "no reboot required"
+    exit 0
+fi
+if /usr/local/sbin/as-mc systemctl --user is-active --quiet minecraft-dev.service; then
+    if ! out=$(/usr/local/sbin/as-mc /home/mc/.local/bin/mc-players 2>&1); then
+        say "minecraft-dev: player count unknown (${out}); not rebooting"
+        exit 0
+    fi
+    humans=${out#humans=}
+    if ((humans > 0)); then
+        say "minecraft-dev: ${humans} player(s) online; not rebooting"
+        exit 0
+    fi
+fi
+if [[ -n "$(who)" ]]; then
+    say "interactive session(s) logged in; not rebooting"
+    exit 0
+fi
+if ((DRY)); then
+    say "reboot required and idle: would reboot (dry run)"
+    exit 0
+fi
+say "reboot required and idle: rebooting"
+exec systemctl reboot

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Dynamic login banner: players online, reboot pending, last backup age.
+echo
+echo "Minecraft dev server (mc-dev)"
+timeout 8 /usr/local/bin/mc motd 2>/dev/null
+echo

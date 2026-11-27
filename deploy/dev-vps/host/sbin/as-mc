@@ -1,0 +1,9 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Run a command as the rootless user mc with its systemd user session env.
+# Installed to /usr/local/sbin/as-mc. Usage: as-mc systemctl --user status minecraft-dev
+uid=$(id -u mc) || exit 1
+cd /home/mc || exit 1
+exec runuser -u mc -- env HOME=/home/mc USER=mc XDG_RUNTIME_DIR="/run/user/${uid}" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+    PATH=/home/mc/.local/bin:/usr/local/bin:/usr/bin:/bin "$@"

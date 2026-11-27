@@ -1,0 +1,89 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Admin helper for the mc-dev VPS (mirrors cs-server's /usr/local/bin/cs).
+# Run as root; jobs run as the rootless user mc.
+#   mc status                    unit, health, image, players, reboot-pending, backups, timers
+#   mc logs [-n N] [--no-follow] server log (follows by default)
+#   mc players                   humans=N
+#   mc rcon <command...>         console command over RCON (127.0.0.1 only)
+#   mc backup                    backup now
+#   mc restore-test              test-restore the newest backup into a scratch dir
+#   mc update [--dry-run|--now]  roll onto ghcr.io/kevintcoughlin/minecraft-server:main when idle
+#   mc plugin-update [--dry-run|--now]  newest DeathBanPro release when idle
+#   mc reboot-check              dry run of the idle reboot decision
+#   mc motd                      short summary used in the login banner
+set -uo pipefail
+MCHOME=/home/mc
+DATA="${MCHOME}/minecraft-dev/data"
+BACKUPS="${MCHOME}/backups/minecraft"
+QUADLET="${MCHOME}/.config/containers/systemd/minecraft-dev.container"
+AS=/usr/local/sbin/as-mc
+BIN="${MCHOME}/.local/bin"
+
+as_mc() {
+    if [[ "$(id -un)" == mc ]]; then (cd /tmp && "$@"); else "${AS}" "$@"; fi
+}
+
+backup_age() {
+    local f
+    f=$(ls -1t "${BACKUPS}"/daily-*.tar.zst 2>/dev/null | head -1)
+    [[ -n "${f}" ]] || { echo "none"; return; }
+    echo "$(( ($(date +%s) - $(stat -c %Y "${f}")) / 3600 ))h ago ($(basename "${f}"), $(du -h "${f}" | cut -f1))"
+}
+
+cmd_motd() {
+    local state players
+    state=$(as_mc systemctl --user is-active minecraft-dev.service 2>/dev/null)
+    players=$(as_mc "${BIN}/mc-players" 2>/dev/null || echo "humans=unknown")
+    echo "  minecraft-dev: ${state}, ${players}"
+    [[ -e /var/run/reboot-required ]] && echo "  reboot pending (mc-reboot-if-idle, 02:15-03:15 PT when idle)"
+    echo "  last backup: $(backup_age)"
+    echo "  try: mc status | mc logs | mc players | mc rcon list"
+}
+
+cmd_status() {
+    echo "== minecraft-dev"
+    as_mc systemctl --user --no-pager --lines=0 status minecraft-dev.service | sed -n '1,4p'
+    as_mc podman ps --filter name=minecraft-dev --format '   container: {{.Status}}  {{.Ports}}'
+    echo "   image: $(sed -n 's/^Image=//p' "${QUADLET}")"
+    echo "   $(as_mc "${BIN}/mc-players" 2>/dev/null || echo humans=unknown)"
+    grep -m1 -oE 'Paper version [^ ]+' "${DATA}/logs/latest.log" 2>/dev/null | sed 's/^/   /'
+    echo "== host"
+    echo "   up $(uptime -p | sed 's/^up //'), load $(cut -d' ' -f1-3 /proc/loadavg), kernel $(uname -r)"
+    free -h | awk '/^Mem/ {print "   mem used " $3 " of " $2}'
+    df -h / | awk 'NR==2 {print "   disk / " $3 " of " $2 " (" $5 ")"}'
+    [[ -e /var/run/reboot-required ]] && echo "   REBOOT PENDING" || echo "   no reboot pending"
+    echo "== backups"
+    echo "   last daily: $(backup_age)"
+    echo "   restore test: $(cat "${MCHOME}/.local/state/mc-restore-test/last" 2>/dev/null || echo never)"
+    echo "== timers (PT)"
+    as_mc systemctl --user list-timers --no-pager 'mc-*' | sed -n '2,$p' | grep mc- | awk '{print "   " $NF ": " $1 " " $2 " " $3}'
+    systemctl list-timers --no-pager mc-reboot-if-idle.timer | grep mc- | awk '{print "   " $NF ": " $1 " " $2 " " $3}'
+}
+
+cmd_logs() {
+    local n=50 follow=1
+    while (($#)); do
+        case "$1" in
+            -n) n="${2:-50}"; shift ;;
+            --no-follow) follow=0 ;;
+        esac
+        shift
+    done
+    if ((follow)); then tail -n "${n}" -F "${DATA}/logs/latest.log"; else tail -n "${n}" "${DATA}/logs/latest.log"; fi
+}
+
+case "${1:-status}" in
+    status) cmd_status ;;
+    motd) cmd_motd ;;
+    logs) shift; cmd_logs "$@" ;;
+    players) as_mc "${BIN}/mc-players" ;;
+    rcon) shift; [[ $# -gt 0 ]] || { echo "usage: mc rcon <command...>" >&2; exit 2; }; as_mc "${BIN}/mc-rcon" "$@" ;;
+    backup) as_mc "${BIN}/mc-backup" ;;
+    restore-test) as_mc "${BIN}/mc-restore-test" ;;
+    update) shift; as_mc "${BIN}/mc-server-update" "${@:---dry-run}" ;;
+    plugin-update) shift; as_mc "${BIN}/mc-plugin-update" "${@:---dry-run}" ;;
+    reboot-check) /usr/local/sbin/mc-reboot-if-idle --dry-run ;;
+    -h|--help|help) sed -n '3,15p' "$0" ;;
+    *) echo "unknown command: $1 (mc help)" >&2; exit 2 ;;
+esac
