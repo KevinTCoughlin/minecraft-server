@@ -100,6 +100,7 @@ minecraft-server/
 │   └── example-plugin/       # Sample Kotlin plugin
 ├── scripts/                   # Management scripts
 ├── docker/                    # Docker configuration
+├── deploy/dev-vps/            # Ops kit for a rootless-Podman VPS (Quadlet, timers, backups)
 ├── docs/                      # Documentation
 ├── build.gradle.kts          # Root Gradle config
 └── settings.gradle.kts       # Multi-project setup
@@ -345,6 +346,12 @@ Paper 26.3 build 258 is the pinned server and plugin API. What that build change
 cd docker
 docker-compose up -d
 ```
+
+### Rootless Podman on a VPS
+
+`deploy/dev-vps/` holds the ops kit for running the published image as a rootless Podman Quadlet:
+auto-update with rollback, daily backups, idle-only restarts and Chunky pre-generation. See
+[deploy/dev-vps/README.md](deploy/dev-vps/README.md).
 
 ## Uptime alerts
 

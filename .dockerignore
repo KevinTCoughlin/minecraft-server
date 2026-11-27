@@ -19,3 +19,4 @@ server/dumps
 server/*.jar
 *.hprof
 .script-portability-test
+deploy

@@ -79,6 +79,15 @@ jobs:
         run: |
           bash -n setup.sh scripts/*.sh docker/entrypoint.sh
           shellcheck setup.sh scripts/*.sh tests/*.sh docker/entrypoint.sh
+          # deploy/dev-vps: ops kit for the dev VPS (lint only, never run in CI)
+          bash -n deploy/dev-vps/bin/mc-backup deploy/dev-vps/bin/mc-chunky-idle deploy/dev-vps/bin/mc-lib.sh \
+            deploy/dev-vps/bin/mc-players deploy/dev-vps/bin/mc-plugin-update deploy/dev-vps/bin/mc-restore-test \
+            deploy/dev-vps/bin/mc-server-update deploy/dev-vps/host/mc deploy/dev-vps/host/sbin/*
+          shellcheck -x --severity=warning deploy/dev-vps/bin/mc-backup deploy/dev-vps/bin/mc-chunky-idle \
+            deploy/dev-vps/bin/mc-lib.sh deploy/dev-vps/bin/mc-players deploy/dev-vps/bin/mc-plugin-update \
+            deploy/dev-vps/bin/mc-restore-test deploy/dev-vps/bin/mc-server-update \
+            deploy/dev-vps/host/mc deploy/dev-vps/host/sbin/* deploy/dev-vps/host/50-mc-dev
+          python3 -m py_compile deploy/dev-vps/bin/mc-rcon
 
       - name: Publish test report
         uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
