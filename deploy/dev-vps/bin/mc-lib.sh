@@ -3,6 +3,42 @@
 # Shared helpers for mc-server-update, mc-plugin-update and mc-backup.
 # Sourced, not executed. Runs as the rootless user (mc).
 
+# --- Active world (see mc-world). One world runs at a time; every job that
+# sources this file acts on the active one. Per-world settings live in
+# ~/.config/mc-world/<name>.env; no state file means "dev".
+MC_STATE_DIR="${MC_STATE_DIR:-${HOME}/.local/state/mc-world}"
+MC_WORLD_CONF="${MC_WORLD_CONF:-${HOME}/.config/mc-world}"
+
+mc_active_world() {
+    local w
+    w=$(cat "${MC_STATE_DIR}/active" 2>/dev/null || true)
+    [[ "${w}" =~ ^[a-z0-9-]+$ && -f "${MC_WORLD_CONF}/${w}.env" ]] && echo "${w}" || echo dev
+}
+
+# mc_load_world NAME [--reset]: set MC_WORLD, MC_UNIT, MC_DATA, ... from NAME's
+# env file. --reset forgets the previous world's values first (swap); without
+# it exported MC_* overrides win (tests).
+mc_load_world() {
+    MC_WORLD=$1
+    if [[ "${2:-}" == "--reset" ]]; then
+        unset MC_UNIT MC_QUADLET MC_DATA MC_BACKUP_DIR MC_BACKUP_EXCLUDES MC_CHUNKY MC_UPDATES MC_WORLD_DESC
+    fi
+    # shellcheck disable=SC1090
+    [[ -f "${MC_WORLD_CONF}/${MC_WORLD}.env" ]] && source "${MC_WORLD_CONF}/${MC_WORLD}.env"
+    return 0
+}
+
+# Jobs that only make sense for one world call: mc_require_feature MC_UPDATES
+mc_require_feature() {
+    local var=$1 quiet=${2:-}
+    if [[ "${!var:-0}" != 1 ]]; then
+        [[ -n "${quiet}" ]] || log "skipping: not applicable to the active world (${MC_WORLD}); it only runs for worlds with ${var}=1"
+        exit 0
+    fi
+}
+
+mc_load_world "${MC_WORLD:-$(mc_active_world)}"
+
 MC_UNIT="${MC_UNIT:-minecraft-dev.service}"
 MC_QUADLET="${MC_QUADLET:-${HOME}/.config/containers/systemd/minecraft-dev.container}"
 MC_DATA="${MC_DATA:-${HOME}/minecraft-dev/data}"

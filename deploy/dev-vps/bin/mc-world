@@ -1,0 +1,187 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Swap which Minecraft world the host runs. One world at a time: the box has
+# 4 GB RAM and each server takes a 2G heap, plus they share ports 25565,
+# 19132 and the RCON port. Runs as the rootless user (root uses `mc world`).
+#
+#   mc-world                    status: active world, unit states, backups
+#   mc-world list               same
+#   mc-world <name>             swap to <name>   (alias: mc-world swap <name>)
+#   mc-world --dry-run <name>   check the preconditions, change nothing
+#   mc-world is-active <name>   exit 0 if <name> is the active world
+#
+# A swap refuses unless humans=0 (unknown counts as busy), takes the shared
+# maintenance lock, backs up the current world (tag pre-swap), stops it,
+# starts the other one and waits for it to be healthy. If the new world does
+# not come up healthy it stops it and starts the previous world again. World
+# data is never moved or modified by a swap.
+#
+# Worlds are defined by ~/.config/mc-world/<name>.env. The active one is in
+# ~/.local/state/mc-world/active (missing file = dev). Jobs that source
+# mc-lib.sh (backup, restore test, Chunky idle, updates) act on the active
+# world only; Chunky and the updaters are dev-only and skip other worlds.
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+DRY=0
+args=()
+for a in "$@"; do
+    case "$a" in
+        --dry-run) DRY=1 ;;
+        -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+        *) args+=("$a") ;;
+    esac
+done
+set -- "${args[@]+"${args[@]}"}"
+
+HISTORY="${MC_STATE_DIR}/history"
+# shellcheck disable=SC2034 # read by mc_restart_healthy in mc-lib.sh
+MC_HEALTH_TRIES="${MC_SWAP_HEALTH_TRIES:-60}"   # first boot of a new world generates it: allow 5 min
+
+list_worlds() {
+    local f
+    for f in "${MC_WORLD_CONF}"/*.env; do
+        [[ -e "${f}" ]] && basename "${f}" .env
+    done
+}
+
+# Print one variable of another world without touching our own state.
+world_var() { ( unset MC_UNIT MC_QUADLET MC_DATA MC_BACKUP_DIR MC_BACKUP_EXCLUDES MC_CHUNKY MC_UPDATES MC_WORLD_DESC
+                # shellcheck disable=SC1090
+                source "${MC_WORLD_CONF}/$1.env"; printf '%s' "${!2}" ); }
+
+# Any minecraft-* container or unit alive, whichever world it belongs to.
+running_units() {
+    local w u
+    for w in $(list_worlds); do
+        u=$(world_var "${w}" MC_UNIT)
+        systemctl --user is-active --quiet "${u}" && echo "${u}"
+    done
+    return 0
+}
+running_containers() { podman ps --filter 'name=^minecraft-' --format '{{.Names}}'; }
+
+cmd_status() {
+    local w u st
+    echo "active world: ${MC_WORLD}"
+    for w in $(list_worlds); do
+        u=$(world_var "${w}" MC_UNIT)
+        st=$(systemctl --user is-active "${u}" 2>/dev/null || true)
+        printf '  %-6s %-9s unit=%s data=%s (%s)\n' "${w}" "${st}" "${u}" \
+            "$(world_var "${w}" MC_DATA)" "$(du -sh "$(world_var "${w}" MC_DATA)" 2>/dev/null | cut -f1)"
+        printf '         backups=%s  chunky=%s updates=%s\n' "$(world_var "${w}" MC_BACKUP_DIR)" \
+            "$(world_var "${w}" MC_CHUNKY)" "$(world_var "${w}" MC_UPDATES)"
+    done
+    echo "players: $("${MC_BIN}/mc-players" 2>/dev/null || echo humans=unknown)"
+    [[ -f "${HISTORY}" ]] && { echo "last swaps:"; tail -n 5 "${HISTORY}" | sed 's/^/  /'; }
+    return 0
+}
+
+stop_unit() {
+    local u=$1 i
+    systemctl --user stop "${u}" || true
+    for ((i = 0; i < 60; i++)); do
+        systemctl --user is-active --quiet "${u}" || return 0
+        sleep 2
+    done
+    return 1
+}
+
+set_active() {
+    mkdir -p "${MC_STATE_DIR}"
+    printf '%s\n' "$1" > "${MC_STATE_DIR}/active.tmp"
+    mv -f "${MC_STATE_DIR}/active.tmp" "${MC_STATE_DIR}/active"
+}
+
+cmd_swap() {
+    local target=$1 cur=${MC_WORLD} cur_unit=${MC_UNIT}
+    [[ "${target}" =~ ^[a-z0-9-]+$ && -f "${MC_WORLD_CONF}/${target}.env" ]] \
+        || { echo "unknown world '${target}' (have: $(list_worlds | tr '\n' ' '))" >&2; exit 2; }
+
+    local tunit tdata tquadlet
+    tunit=$(world_var "${target}" MC_UNIT)
+    tdata=$(world_var "${target}" MC_DATA)
+    tquadlet=$(world_var "${target}" MC_QUADLET)
+    [[ -f "${tquadlet}" ]] || { echo "refusing: ${tquadlet} missing" >&2; exit 2; }
+    [[ -d "${tdata}" ]] || { echo "refusing: ${tdata} missing" >&2; exit 2; }
+
+    # Shared with backup, updates and mc-reboot-if-idle. Fail, do not skip silently.
+    mkdir -p "$(dirname "${MC_LOCK}")"
+    exec 9>>"${MC_LOCK}"
+    if ! flock -n 9; then
+        log "refusing: a maintenance job (backup/update/reboot check) holds ${MC_LOCK}; try again in a few minutes"
+        exit 75
+    fi
+
+    if [[ "${target}" == "${cur}" ]]; then
+        if mc_running; then
+            log "${target} is already the active world and ${cur_unit} is running"
+            exit 0
+        fi
+        log "${target} is active but ${cur_unit} is not running; starting it"
+        ((DRY)) && { log "DRY RUN: would start ${cur_unit}"; exit 0; }
+        if [[ -n "$(running_containers)" ]]; then log "refusing: another minecraft container is running"; exit 3; fi
+        mc_restart_healthy
+        exit $?
+    fi
+
+    local alive
+    alive=$(running_units | tr '\n' ' ')
+    if [[ -n "${alive}" || -n "$(running_containers)" ]]; then
+        mc_idle || { log "refusing to swap ${cur} -> ${target}: players online or count unknown"; exit 3; }
+    else
+        log "no minecraft unit is running; nothing to check for players"
+    fi
+
+    if ((DRY)); then
+        log "DRY RUN: would back up ${cur} (tag pre-swap), stop ${cur_unit}, set active=${target}, start ${tunit} and wait for healthy"
+        exit 0
+    fi
+
+    log "swap ${cur} -> ${target}: backing up ${cur}"
+    "${MC_BIN}/mc-backup" --tag pre-swap --no-lock || { log "backup failed; not swapping"; exit 1; }
+
+    # Re-check right before stopping: someone may have joined during the backup.
+    if mc_running; then
+        mc_idle || { log "a player joined during the backup; not swapping"; exit 3; }
+    fi
+
+    log "stopping ${cur_unit}"
+    stop_unit "${cur_unit}" || { log "ERROR: ${cur_unit} did not stop; leaving ${cur} active, nothing started"; exit 1; }
+    stop_unit "${tunit}" || true
+    if [[ -n "$(running_containers)" ]]; then
+        log "ERROR: a minecraft container is still running ($(running_containers | tr '\n' ' ')); not starting ${target}"
+        systemctl --user start "${cur_unit}" || true
+        exit 1
+    fi
+
+    set_active "${target}"
+    mc_load_world "${target}" --reset
+    log "starting ${MC_UNIT} (${MC_DATA})"
+    if mc_restart_healthy; then
+        printf '%s %s -> %s ok\n' "$(date -Is)" "${cur}" "${target}" >> "${HISTORY}"
+        log "swap ${cur} -> ${target} done; $("${MC_BIN}/mc-players" 2>/dev/null || echo humans=unknown)"
+        exit 0
+    fi
+
+    log "${target} is not healthy; rolling back to ${cur}"
+    stop_unit "${MC_UNIT}" || true
+    set_active "${cur}"
+    mc_load_world "${cur}" --reset
+    if mc_restart_healthy; then
+        printf '%s %s -> %s FAILED, rolled back\n' "$(date -Is)" "${cur}" "${target}" >> "${HISTORY}"
+        log "rolled back: ${cur} is active and healthy"
+    else
+        printf '%s %s -> %s FAILED, rollback unhealthy\n' "$(date -Is)" "${cur}" "${target}" >> "${HISTORY}"
+        log "ERROR: rollback to ${cur} is not healthy either; check journalctl --user -u ${MC_UNIT}"
+    fi
+    exit 1
+}
+
+case "${1:-status}" in
+    status|list) cmd_status ;;
+    is-active) [[ "${2:-}" == "${MC_WORLD}" ]] ;;
+    swap) [[ -n "${2:-}" ]] || { echo "usage: mc-world swap <name>" >&2; exit 2; }; cmd_swap "$2" ;;
+    *) cmd_swap "$1" ;;
+esac
