@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: MIT
+# Minecraft dev world on the dev VPS (rootless Podman, user mc).
+# Installed to ~/.config/containers/systemd/minecraft-dev.container.
+# mc-server-update rewrites the Image= line (tag@digest) and rolls back on a
+# failed health check, so keep exactly one Image= line.
+
+[Unit]
+Description=Minecraft dev world (Paper, ghcr.io/kevintcoughlin/minecraft-server)
+
+[Quadlet]
+# The provider image configures eth0 twice (ifupdown and netplan/networkd), so
+# networking.service fails and nothing pulls in the system network-online.target.
+# Quadlet's default podman-user-wait-network-online then waits 90s on every
+# start. The server binds 0.0.0.0 and needs no network to start, so skip it.
+DefaultDependencies=false
+
+[Container]
+# First start pulls :main. After that mc-server-update pins it to tag@digest.
+Image=ghcr.io/kevintcoughlin/minecraft-server:main
+ContainerName=minecraft-dev
+# Container uid 1000 (minecraft) is the host user mc, so host scripts can read
+# and write the data dir without sudo.
+UserNS=keep-id:uid=1000,gid=1000
+PublishPort=25565:25565/tcp
+# Bedrock via Geyser. Geyser 2.12.1 defaults to the NetherNet transport: built-in
+# signaling on 19132/tcp plus WebRTC on 19132/udp. The host firewall must allow
+# both for Bedrock joins (see README.md).
+PublishPort=19132:19132/udp
+PublishPort=19132:19132/tcp
+# RCON is reachable from the host loopback only (the firewall does not open it).
+PublishPort=127.0.0.1:25575:25575/tcp
+Volume=%h/minecraft-dev/data:/data
+# RCON_PASSWORD (mode 0600, never commit). The entrypoint writes it into
+# server.properties and turns RCON on.
+EnvironmentFile=%h/.config/minecraft-dev/rcon.env
+Environment=MEMORY=2G
+Environment=TZ=America/Los_Angeles
+ReadOnly=true
+Tmpfs=/tmp:rw,nosuid,size=256m
+DropCapability=ALL
+NoNewPrivileges=true
+# The entrypoint turns SIGTERM into the console "stop", which saves the world.
+StopTimeout=90
+PodmanArgs=--memory=3g --oom-score-adj=500
+HealthCmd=nc -z 127.0.0.1 25565
+HealthInterval=15s
+HealthTimeout=5s
+HealthStartPeriod=180s
+HealthRetries=3
+Notify=healthy
+
+[Service]
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=300
+TimeoutStopSec=120
+MemoryMax=3200M
+CPUQuota=350%
+
+[Install]
+WantedBy=default.target

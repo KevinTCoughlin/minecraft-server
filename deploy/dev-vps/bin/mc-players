@@ -1,0 +1,11 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Print humans=N for the minecraft-dev server (RCON "list").
+# Exit 1 when the count cannot be read (server down or RCON failing), so
+# callers treat "unknown" as busy.
+set -euo pipefail
+out=$("${MC_RCON:-$HOME/.local/bin/mc-rcon}" list 2>/dev/null) || { echo "humans=unknown"; exit 1; }
+# Paper: "There are 0 of a max of 20 players online: ..."
+n=$(printf '%s\n' "$out" | sed -nE 's/.*[Tt]here are ([0-9]+) (of a max of|\/).*/\1/p' | head -1)
+[[ "$n" =~ ^[0-9]+$ ]] || { echo "humans=unknown"; exit 1; }
+echo "humans=${n}"
