@@ -1,0 +1,144 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Install the newest KevinTCoughlin/deathban-pro release (prereleases count)
+# into ~/minecraft-dev/data/plugins.
+#
+#   mc-plugin-update            inside the morning window (04:15-07:55 PT)
+#   mc-plugin-update --now      ignore the window
+#   mc-plugin-update --dry-run  resolve and print; no download into plugins, no restart
+#
+# The jar must match the release asset's sha256 (GitHub "digest" field, or a
+# checksums asset when the release has one). Same sha256 as installed: skip.
+# Nobody may be online. The old jar is stashed; after the restart the log must
+# show "Enabling DeathBanPro v<version>" and no enable error, or the old jar
+# goes back and the server restarts on it.
+#
+# The image copies its own baked jars (blackjack, example, fart) into
+# /data/plugins with cp -f on every start; other jars in the bind-mounted data
+# dir are left alone, so DeathBanPro is not clobbered.
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+REPO="${MC_PLUGIN_REPO:-KevinTCoughlin/deathban-pro}"
+NAME="${MC_PLUGIN_NAME:-DeathBanPro}"
+JAR_RE="${MC_PLUGIN_JAR_RE:-^DeathBanPro-.*\.jar$}"
+OLD_GLOB=("DeathBanPro-*.jar" "deathban-pro-*.jar")
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/mc-plugin-update"
+PLUGINS="${MC_DATA}/plugins"
+DRY=0; NOW=0
+for a in "$@"; do
+    case "$a" in
+        --dry-run) DRY=1 ;;
+        --now) NOW=1 ;;
+        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+        *) echo "unknown argument: $a" >&2; exit 2 ;;
+    esac
+done
+
+mc_lock
+mkdir -p "${STATE_DIR}/downloads" "${STATE_DIR}/stash"
+
+if ! in_window && ((!DRY)) && ((!NOW)); then
+    log "outside the ${MC_START}-${MC_DEADLINE} PT window; nothing to do"
+    exit 0
+fi
+
+gh() { curl -fsSL --max-time 60 -H "Accept: application/vnd.github+json" -H "User-Agent: mc-plugin-update" "$@"; }
+
+rel=$(gh "https://api.github.com/repos/${REPO}/releases?per_page=30" | jq -c --arg re "${JAR_RE}" '
+  [ .[] | select(.draft | not)
+        | {tag: .tag_name, pre: .prerelease, at: .published_at,
+           jar: ([.assets[] | select(.name | test($re))] | first),
+           sums: ([.assets[] | select(.name | test("(?i)(checksums|sha256)"))] | first)}
+        | select(.jar != null) ]
+  | sort_by(.at) | last')
+[[ -n "${rel}" && "${rel}" != "null" ]] || { log "no release with a ${NAME} jar"; exit 1; }
+tag=$(jq -r .tag <<<"${rel}")
+version=${tag#v}
+jar=$(jq -r .jar.name <<<"${rel}")
+url=$(jq -r .jar.browser_download_url <<<"${rel}")
+want=$(jq -r '.jar.digest // "" | sub("^sha256:"; "")' <<<"${rel}")
+log "newest release: ${tag} (prerelease=$(jq -r .pre <<<"${rel}")) asset ${jar}"
+
+sums_url=$(jq -r '.sums.browser_download_url // ""' <<<"${rel}")
+if [[ -n "${sums_url}" ]]; then
+    from_sums=$(gh "${sums_url}" | awk -v f="${jar}" '$2 == f || $2 == "*"f { print $1 }' | head -1)
+    if [[ -n "${from_sums}" ]]; then
+        [[ -z "${want}" || "${want}" == "${from_sums}" ]] || { log "error: checksums asset and GitHub digest disagree"; exit 1; }
+        want=${from_sums}
+        log "expected sha256 from checksums asset"
+    fi
+fi
+
+installed_sha=""
+shopt -s nullglob
+installed=()
+# shellcheck disable=SC2206 # the glob must expand, ${g} is a pattern
+for g in "${OLD_GLOB[@]}"; do installed+=("${PLUGINS}"/${g}); done
+shopt -u nullglob
+for f in "${installed[@]}"; do installed_sha=$(sha256sum "$f" | cut -d' ' -f1); log "installed: $(basename "$f") sha256 ${installed_sha}"; done
+((${#installed[@]})) || log "installed: none"
+
+if [[ -n "${want}" && "${want}" == "${installed_sha}" && ${#installed[@]} -eq 1 ]]; then
+    log "${jar} already installed (sha256 matches); nothing to do"
+    exit 0
+fi
+
+dl="${STATE_DIR}/downloads/${jar}"
+curl -fsSL --max-time 300 -o "${dl}.part" "${url}"
+got=$(sha256sum "${dl}.part" | cut -d' ' -f1)
+if [[ -n "${want}" ]]; then
+    [[ "${got}" == "${want}" ]] || { rm -f "${dl}.part"; log "error: sha256 mismatch for ${jar} (got ${got}, want ${want})"; exit 1; }
+    log "sha256 verified: ${got}"
+else
+    log "no published checksum; recorded sha256 ${got}"
+fi
+mv -f "${dl}.part" "${dl}"
+if [[ "${got}" == "${installed_sha}" && ${#installed[@]} -eq 1 ]]; then
+    log "${jar} already installed (same sha256); nothing to do"
+    exit 0
+fi
+
+if ((DRY)); then
+    if mc_idle; then idle=yes; else idle=no; fi
+    log "DRY RUN: would install ${jar} and restart ${MC_UNIT} (idle now: ${idle})"
+    exit 0
+fi
+
+mc_idle || exit 0
+
+ts=$(date +%Y%m%d-%H%M%S)
+mkdir -p "${MC_BACKUP_DIR}"
+tar -C "${MC_DATA}" --zstd -cf "${MC_BACKUP_DIR}/pre-plugin-${ts}.tar.zst" plugins
+chmod 600 "${MC_BACKUP_DIR}/pre-plugin-${ts}.tar.zst"
+ls -1t "${MC_BACKUP_DIR}"/pre-plugin-*.tar.zst | tail -n +8 | xargs -r rm -f --
+log "plugins dir backed up to ${MC_BACKUP_DIR}/pre-plugin-${ts}.tar.zst"
+
+stash="${STATE_DIR}/stash/${ts}"
+mkdir -p "${stash}"
+for f in "${installed[@]}"; do mv -f "$f" "${stash}/"; done
+install -m 0644 "${dl}" "${PLUGINS}/${jar}"
+log "placed ${jar}; restarting"
+
+plugin_ok() {
+    local logf="${MC_DATA}/logs/latest.log"
+    grep -q "Enabling ${NAME} v${version}" "${logf}" \
+        && ! grep -qE "Error occurred while enabling ${NAME}|Could not load '.*${NAME}|Disabling ${NAME}" "${logf}"
+}
+
+if mc_restart_healthy && plugin_ok; then
+    log "$(grep -m1 "Enabling ${NAME} v${version}" "${MC_DATA}/logs/latest.log")"
+    printf '%s %s %s\n' "$(date -Is)" "${tag}" "${got}" >> "${STATE_DIR}/history"
+    log "${NAME} ${version} installed and enabled"
+    exit 0
+fi
+
+log "${NAME} ${version} did not enable cleanly; rolling back"
+grep -nE "${NAME}" "${MC_DATA}/logs/latest.log" | tail -20 || true
+rm -f "${PLUGINS}/${jar}"
+shopt -s nullglob
+for f in "${stash}"/*.jar; do mv -f "$f" "${PLUGINS}/"; done
+shopt -u nullglob
+if mc_restart_healthy; then log "rolled back"; else log "ERROR: rollback not healthy; check journalctl --user -u ${MC_UNIT}"; fi
+exit 1

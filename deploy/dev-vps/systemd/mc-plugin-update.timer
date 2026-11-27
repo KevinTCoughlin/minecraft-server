@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# 04:05, 04:25 ... 07:45 America/Los_Angeles, interleaved with the image passes so
+# the two never fight over the shared maintenance lock.
+[Unit]
+Description=Daily DeathBanPro rollout for minecraft-dev
+
+[Timer]
+OnCalendar=*-*-* 04..07:05/20:00 America/Los_Angeles
+RandomizedDelaySec=60s
+Persistent=false
+Unit=mc-plugin-update.service
+
+[Install]
+WantedBy=timers.target

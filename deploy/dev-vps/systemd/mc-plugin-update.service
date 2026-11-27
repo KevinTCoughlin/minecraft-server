@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Install the newest DeathBanPro release on minecraft-dev when nobody is playing
+Documentation=file:///home/mc/deploy/README.md
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/mc-plugin-update
+EnvironmentFile=-%h/.config/minecraft-dev/update.env
+Nice=10
+TimeoutStartSec=1200
+SyslogIdentifier=mc-plugin-update
