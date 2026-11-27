@@ -1,0 +1,126 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Roll minecraft-dev onto ghcr.io/kevintcoughlin/minecraft-server:main.
+# Modeled on cs-server's ops/cs-server-update.
+#
+#   mc-server-update            inside the morning window (04:15-07:55 PT)
+#   mc-server-update --now      ignore the window
+#   mc-server-update --dry-run  resolve and print; no backup, no restart
+#
+# Rules: the image's org.opencontainers.image.revision must have every GitHub
+# check run completed with no failure (public API), the commit message must
+# not contain [skip deploy] or [manual], and nobody may be online (mc-players
+# humans=0; unknown counts as busy). Then: backup, rewrite Image= to
+# repo:sha-<7>@digest, restart, health check. A failed health check restores
+# the previous Image= line and restarts on it.
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+REPO="${MC_UPDATE_REPO:-KevinTCoughlin/minecraft-server}"
+IMAGE="${MC_UPDATE_IMAGE:-ghcr.io/kevintcoughlin/minecraft-server}"
+MANUAL_RE="${MC_UPDATE_MANUAL_RE:-\[skip deploy\]|\[manual\]}"
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/mc-server-update"
+DRY=0; NOW=0
+for a in "$@"; do
+    case "$a" in
+        --dry-run) DRY=1 ;;
+        --now) NOW=1 ;;
+        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+        *) echo "unknown argument: $a" >&2; exit 2 ;;
+    esac
+done
+
+mc_lock
+mkdir -p "${STATE_DIR}"
+
+if ! in_window; then
+    if ((DRY)); then
+        log "outside the ${MC_START}-${MC_DEADLINE} PT window (dry run continues)"
+    elif ((NOW)); then
+        log "outside the window; --now given"
+    else
+        log "outside the ${MC_START}-${MC_DEADLINE} PT window; nothing to do"
+        exit 0
+    fi
+fi
+
+gh_api() {
+    curl -fsS --max-time 30 -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: mc-server-update" -H "X-GitHub-Api-Version: 2022-11-28" "$1"
+}
+
+ref="${IMAGE}:main"
+log "pulling ${ref}"
+podman pull -q "${ref}" >/dev/null
+digest=$(podman image inspect --format '{{.Digest}}' "${ref}")
+revision=$(podman image inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "${ref}")
+[[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { log "error: no digest for ${ref}"; exit 1; }
+[[ "${revision}" =~ ^[0-9a-f]{40}$ ]] || { log "error: ${ref} has no revision label"; exit 1; }
+short=${revision:0:7}
+target="${IMAGE}:sha-${short}@${digest}"
+log "main image: revision ${short}, digest ${digest}"
+
+current=$(sed -n 's/^Image=//p' "${MC_QUADLET}" | head -1)
+log "current Image=${current}"
+same=0
+if [[ "${current}" == *"@${digest}" ]]; then
+    same=1
+    log "already on ${digest}"
+    ((DRY)) || exit 0
+fi
+
+message=$(gh_api "https://api.github.com/repos/${REPO}/commits/${revision}" | jq -r '.commit.message')
+if [[ "${message}" =~ ${MANUAL_RE} ]]; then
+    log "commit ${short} is marked [skip deploy]/[manual]; not updating"
+    exit 0
+fi
+
+checks=$(gh_api "https://api.github.com/repos/${REPO}/commits/${revision}/check-runs?per_page=100")
+status=$(gh_api "https://api.github.com/repos/${REPO}/commits/${revision}/status")
+verdict=$(jq -rn --argjson c "${checks}" --argjson s "${status}" '
+  ($c.check_runs // []) as $runs
+  | ([$runs[] | select(.status != "completed")] | length) as $pending
+  | ([$runs[] | select(.conclusion as $x | ["failure","cancelled","timed_out","action_required","startup_failure"] | index($x))] | length) as $bad
+  | if $pending > 0 then "pending"
+    elif $bad > 0 or ($s.state == "failure" or $s.state == "error") then "failed"
+    elif ($runs | length) == 0 and ($s.statuses | length) == 0 then "none"
+    else "ok" end')
+nruns=$(jq -r '.total_count' <<<"${checks}")
+case "${verdict}" in
+    ok) log "checks on ${short}: ${nruns} run(s), all green" ;;
+    pending) log "checks on ${short} still running; not updating"; exit 0 ;;
+    failed) log "checks on ${short} failed:"; jq -r '.check_runs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | "  \(.name): \(.status)/\(.conclusion)"' <<<"${checks}"; exit 0 ;;
+    *) log "no checks found for ${short}; not updating"; exit 0 ;;
+esac
+
+if ((DRY)); then
+    if mc_idle; then idle=yes; else idle=no; fi
+    if ((same)); then log "DRY RUN: already current; a real run would do nothing (idle now: ${idle})"; exit 0; fi
+    log "DRY RUN: would back up, set Image=${target}, restart ${MC_UNIT} and health-check (idle now: ${idle})"
+    exit 0
+fi
+
+mc_idle || exit 0
+
+"${MC_BIN}/mc-backup" --tag pre-update --no-lock
+
+cp -p "${MC_QUADLET}" "${STATE_DIR}/minecraft-dev.container.prev"
+sed -i "s|^Image=.*|Image=${target}|" "${MC_QUADLET}"
+systemctl --user daemon-reload
+log "rolling to ${target}"
+if mc_restart_healthy; then
+    printf '%s %s %s\n' "$(date -Is)" "${short}" "${digest}" >> "${STATE_DIR}/history"
+    log "update to ${short} done"
+    exit 0
+fi
+
+log "health check failed; rolling back to ${current}"
+cp -p "${STATE_DIR}/minecraft-dev.container.prev" "${MC_QUADLET}"
+systemctl --user daemon-reload
+if mc_restart_healthy; then
+    log "rolled back to ${current}"
+else
+    log "ERROR: rollback is not healthy either; check journalctl --user -u ${MC_UNIT}"
+fi
+exit 1

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Roll minecraft-dev onto the image published for main when nobody is playing
+Documentation=file:///home/mc/deploy/README.md
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/mc-server-update
+EnvironmentFile=-%h/.config/minecraft-dev/update.env
+Nice=10
+TimeoutStartSec=1800
+SyslogIdentifier=mc-server-update

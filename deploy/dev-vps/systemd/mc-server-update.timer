@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# 04:15 America/Los_Angeles, then every 20 minutes through 07:55 (cs-server
+# pattern). The script rolls only when nobody is online. Persistent=false so a
+# VPS that was off at 04:15 does not roll later in the day.
+[Unit]
+Description=Daily image rollout for minecraft-dev
+
+[Timer]
+OnCalendar=*-*-* 04..07:15/20:00 America/Los_Angeles
+RandomizedDelaySec=90s
+Persistent=false
+Unit=mc-server-update.service
+
+[Install]
+WantedBy=timers.target
