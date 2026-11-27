@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# Every minute. Pauses Chunky when a player is online (or a maintenance job
+# holds the lock) and resumes it when the server is idle. OnBootSec so a
+# reboot-if-idle cycle picks the right state quickly; continue-on-restart
+# already resumes the saved task, and this timer will pause it if a player
+# is online right after boot.
+[Unit]
+Description=Keep Chunky pre-generation idle-only on minecraft-dev
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

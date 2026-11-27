@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Pause or resume Chunky pre-generation based on whether players are online
+Documentation=file:///home/mc/deploy/README.md
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/mc-chunky-idle
+Nice=10
+TimeoutStartSec=60
+SyslogIdentifier=mc-chunky-idle

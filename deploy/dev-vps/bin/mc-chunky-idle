@@ -1,0 +1,154 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Pause Chunky pre-generation when players are online or a maintenance job
+# holds the lock; resume when the server is idle. Idempotent. Logs to the
+# journal (SyslogIdentifier=mc-chunky-idle).
+#
+# After the overworld task finishes, starts a one-time nether pregen
+# (circle, radius ${MC_CHUNKY_NETHER_RADIUS:-1000}, centered at nether spawn).
+# Both worlds are never generated at once. Completion is read from Chunky's
+# durable tasks.log (and state files we write), not from `chunky progress`,
+# which reports "No tasks" after a task ends.
+#
+# After the nether task has also completed, the script writes pregen-done
+# once and stays quiet: no start, continue, or pause.
+#
+#   mc-chunky-idle            apply the current state
+#   mc-chunky-idle --status   print players + chunky progress, make no changes
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+STATUS=0
+for a in "$@"; do
+    case "$a" in
+        --status) STATUS=1 ;;
+        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        *) echo "unknown argument: $a" >&2; exit 2 ;;
+    esac
+done
+
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/mc-chunky-idle"
+OVERWORLD="${MC_CHUNKY_OVERWORLD:-minecraft:overworld}"
+NETHER="${MC_CHUNKY_NETHER:-minecraft:the_nether}"
+NETHER_RADIUS="${MC_CHUNKY_NETHER_RADIUS:-1000}"
+NETHER_SHAPE="${MC_CHUNKY_NETHER_SHAPE:-circle}"
+TASKS_LOG="${MC_DATA}/plugins/Chunky/tasks.log"
+LATEST_LOG="${MC_DATA}/logs/latest.log"
+
+rcon() { "${MC_BIN}/mc-rcon" "$@"; }
+
+# True if tasks.log has a line like: completed world=minecraft:overworld ...
+tasks_log_has() {
+    local pat=$1
+    [[ -f "${TASKS_LOG}" ]] && grep -qE "${pat}" "${TASKS_LOG}"
+}
+
+# Persist a marker the first time we observe completion in tasks.log or latest.log.
+mark_if_completed() {
+    local world=$1 marker=$2
+    if [[ -f "${marker}" ]]; then
+        return 0
+    fi
+    if tasks_log_has "completed world=${world}( |$)"; then
+        date -Is > "${marker}"
+        return 0
+    fi
+    if [[ -f "${LATEST_LOG}" ]] && grep -qF "Task finished for ${world}" "${LATEST_LOG}"; then
+        date -Is > "${marker}"
+        return 0
+    fi
+    return 1
+}
+
+nether_was_started() {
+    [[ -f "${STATE_DIR}/nether-started" ]] && return 0
+    tasks_log_has "(started|completed) world=${NETHER}( |$)"
+}
+
+if ! mc_running; then
+    log "minecraft-dev is not running; nothing to do"
+    exit 0
+fi
+
+mkdir -p "${STATE_DIR}"
+
+if ((STATUS)); then
+    "${MC_BIN}/mc-players" 2>/dev/null || echo "humans=unknown"
+    rcon chunky progress 2>/dev/null || true
+    [[ -f "${TASKS_LOG}" ]] && cat "${TASKS_LOG}"
+    exit 0
+fi
+
+# Once both worlds are done, stay quiet even if someone is online.
+if mark_if_completed "${NETHER}" "${STATE_DIR}/nether-done"; then
+    if [[ ! -f "${STATE_DIR}/pregen-done" ]]; then
+        date -Is > "${STATE_DIR}/pregen-done"
+        log "overworld and nether pregen complete; going quiet"
+    fi
+    exit 0
+fi
+
+# Unknown player count is treated as busy, same as the other mc-* jobs.
+if ! out=$("${MC_BIN}/mc-players" 2>/dev/null); then
+    log "player count unknown; pausing Chunky"
+    rcon chunky pause >/dev/null 2>&1 || true
+    exit 0
+fi
+n=${out#humans=}
+
+maintenance=0
+if [[ -e "${MC_LOCK}" ]]; then
+    exec 8>>"${MC_LOCK}"
+    if ! flock -n 8; then
+        maintenance=1
+    else
+        flock -u 8
+    fi
+    exec 8>&-
+fi
+
+if ((n > 0)) || ((maintenance)); then
+    reason="humans=${n}"
+    ((maintenance)) && reason="${reason}, maintenance lock held"
+    msg=$(rcon chunky pause 2>/dev/null || true)
+    log "pause (${reason}): ${msg:-ok}"
+    exit 0
+fi
+
+# Idle: resume any saved/running task, then queue the nether only after a
+# durable overworld completion (tasks.log "completed world=...", or a
+# "Task finished for ..." line in latest.log). "No tasks" from progress is
+# what Chunky reports both before any work and after a task ends, so it is
+# not a signal to start or to skip.
+msg=$(rcon chunky continue 2>/dev/null || true)
+log "continue (humans=0): ${msg:-ok}"
+
+if nether_was_started; then
+    if [[ ! -f "${STATE_DIR}/nether-started" ]]; then
+        date -Is > "${STATE_DIR}/nether-started"
+        log "nether task already present in tasks.log; not starting another"
+    fi
+    exit 0
+fi
+
+if ! mark_if_completed "${OVERWORLD}" "${STATE_DIR}/overworld-done"; then
+    exit 0
+fi
+
+log "overworld finished; starting nether ${NETHER_SHAPE} radius ${NETHER_RADIUS} at spawn"
+outf="${STATE_DIR}/nether-start.out"
+{
+    rcon chunky world "${NETHER}"
+    rcon chunky shape "${NETHER_SHAPE}"
+    rcon chunky spawn
+    rcon chunky radius "${NETHER_RADIUS}"
+    rcon chunky start
+} >"${outf}" 2>&1 || true
+if grep -qiE 'started|running|task' "${outf}"; then
+    date -Is > "${STATE_DIR}/nether-started"
+    log "nether pregen started: $(tr '\n' ' ' < "${outf}")"
+else
+    log "nether start did not confirm; will retry next tick: $(tr '\n' ' ' < "${outf}")"
+fi
+rm -f "${outf}"
