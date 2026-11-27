@@ -1,0 +1,36 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Test-restore of the newest R2 backup: download to a scratch dir, verify the
+# sha256 sidecar, zstd/tar integrity and level.dat. Never touches the live world.
+#   mc-r2-restore-test [daily|weekly]      (default daily)
+# Result: ~/.local/state/mc-r2/restore-test
+set -euo pipefail
+CONF="${MC_R2_CONF:-${HOME}/.config/mc-r2/rclone.conf}"
+BUCKET="${MC_R2_BUCKET:-mc-dev-backups}"
+dir="${1:-daily}"
+[[ "${dir}" =~ ^(daily|weekly)$ ]] || { echo "usage: mc-r2-restore-test [daily|weekly]" >&2; exit 2; }
+STATE="${HOME}/.local/state/mc-r2"; mkdir -p "${STATE}"
+log() { printf '%s %s\n' "$(date '+%F %T %Z')" "$*"; }
+rc() { rclone --config "${CONF}" --s3-no-check-bucket "$@"; }
+scratch=$(mktemp -d "${TMPDIR:-/var/tmp}/mc-r2-restore.XXXXXX")
+trap 'rm -rf "${scratch}"' EXIT
+fail() { log "FAIL: $*"; echo "FAIL ${dir} $(date -Is) $*" > "${STATE}/restore-test"; exit 1; }
+name=$(rc lsf "r2:${BUCKET}/${dir}/" --include '*.tar.zst' | sort | tail -1)
+[[ -n "${name}" ]] || fail "no ${dir} object in r2:${BUCKET}"
+log "downloading ${dir}/${name}"
+rc copyto "r2:${BUCKET}/${dir}/${name}" "${scratch}/${name}" --s3-chunk-size 32M
+rc copyto "r2:${BUCKET}/${dir}/${name}.sha256" "${scratch}/${name}.sha256"
+(cd "${scratch}" && sha256sum -c "${name}.sha256" >/dev/null) || fail "sha256 mismatch"
+zstd -tq "${scratch}/${name}" || fail "zstd integrity"
+listing=$(tar --zstd -tf "${scratch}/${name}") || fail "tar listing"
+grep -q '/level\.dat$' <<<"${listing}" || fail "no level.dat in archive"
+mkdir "${scratch}/x"
+tar --zstd -xf "${scratch}/${name}" -C "${scratch}/x" || fail "extract"
+level=$(sed -n 's/^level-name=//p' "${scratch}/x/server.properties" 2>/dev/null || true)
+[[ -n "${level}" && -s "${scratch}/x/${level}/level.dat" ]] || fail "level.dat missing under ${level:-?}"
+gzip -tq "${scratch}/x/${level}/level.dat" || fail "level.dat not valid gzip"
+regions=$(find "${scratch}/x/${level}" -name '*.mca' -size +0 | wc -l)
+((regions > 0)) || fail "no region files"
+msg="OK ${dir}/${name} $(date -Is) level=${level} regions=${regions} entries=$(wc -l <<<"${listing}")"
+echo "${msg}" > "${STATE}/restore-test"
+log "${msg}"

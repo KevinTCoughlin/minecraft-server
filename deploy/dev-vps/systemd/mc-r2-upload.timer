@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# Daily at 03:45 America/Los_Angeles: mc-backup runs 03:30 + up to 10 min jitter
+# and takes about 10 s; the script also waits on the maintenance lock. Done well
+# before the update window (04:05 plugin, 04:15 server).
+[Unit]
+Description=Daily off-box upload of the minecraft-dev backup (R2)
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 America/Los_Angeles
+RandomizedDelaySec=3m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,84 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Off-box copy of the newest minecraft-dev daily backup to Cloudflare R2.
+# Runs as the rootless user (mc) after mc-backup (timer: 03:45 PT).
+#
+#   daily/<archive>.tar.zst + .sha256   newest ${MC_R2_DAILY_KEEP:-7} kept
+#   weekly/<archive>.tar.zst + .sha256  one per week, newest ${MC_R2_WEEKLY_KEEP:-3} kept
+#
+# Credentials: ~/.config/mc-r2/rclone.conf (mode 0600, remote "r2"), never in a repo.
+# The maintenance lock is held only while picking and pinning the archive (so a
+# running backup/update finishes first); the upload itself runs unlocked so it
+# cannot make mc-plugin-update/mc-server-update skip their window.
+# Result: ~/.local/state/mc-r2/last
+set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+
+CONF="${MC_R2_CONF:-${HOME}/.config/mc-r2/rclone.conf}"
+BUCKET="${MC_R2_BUCKET:-mc-dev-backups}"
+DAILY_KEEP="${MC_R2_DAILY_KEEP:-7}"
+WEEKLY_KEEP="${MC_R2_WEEKLY_KEEP:-3}"
+MAX_AGE_H="${MC_R2_MAX_AGE_H:-36}"
+STATE="${HOME}/.local/state/mc-r2"
+STAGE="${STATE}/stage"
+mkdir -p "${STATE}" "${STAGE}"
+chmod 700 "${STATE}"
+
+[[ -r "${CONF}" ]] || { log "FAIL: ${CONF} missing (R2 credentials not installed)"; echo "FAIL no-credentials $(date -Is)" > "${STATE}/last"; exit 1; }
+rc() { rclone --config "${CONF}" --s3-no-check-bucket --retries 3 --low-level-retries 5 "$@"; }
+fail() { log "FAIL: $*"; echo "FAIL $(date -Is) $*" > "${STATE}/last"; exit 1; }
+trap 'rm -rf "${STAGE:?}"/*' EXIT
+
+# 1. Wait (up to 25 min) for the maintenance lock, pick the newest finished daily, pin it.
+exec 9>>"${MC_LOCK}"
+flock -w 1500 9 || fail "maintenance lock busy for 25 min"
+src=$(ls -1t "${MC_BACKUP_DIR}"/daily-*.tar.zst 2>/dev/null | head -1 || true)
+[[ -n "${src}" ]] || fail "no daily backup in ${MC_BACKUP_DIR}"
+age_h=$(( ($(date +%s) - $(stat -c %Y "${src}")) / 3600 ))
+((age_h <= MAX_AGE_H)) || fail "newest backup $(basename "${src}") is ${age_h}h old (> ${MAX_AGE_H}h); not uploading a stale one"
+name=$(basename "${src}")
+ln -f "${src}" "${STAGE}/${name}"   # hardlink: survives mc-backup's prune while uploading
+flock -u 9; exec 9>&-
+
+size=$(stat -c %s "${STAGE}/${name}")
+(cd "${STAGE}" && sha256sum "${name}" > "${name}.sha256")
+log "uploading ${name} ($(numfmt --to=iec "${size}"))"
+
+# 2. Upload archive, then checksum sidecar; verify size on the remote.
+rc copyto "${STAGE}/${name}" "r2:${BUCKET}/daily/${name}" --s3-chunk-size 32M --s3-upload-concurrency 2 --bwlimit "${MC_R2_BWLIMIT:-0}" --stats-one-line -v 2>&1 | tail -3 || true
+rc copyto "${STAGE}/${name}.sha256" "r2:${BUCKET}/daily/${name}.sha256"
+remote_size=$(rc lsjson "r2:${BUCKET}/daily/${name}" | jq -r '.[0].Size // empty')
+[[ "${remote_size}" == "${size}" ]] || fail "remote size '${remote_size}' != local ${size} for ${name}"
+log "uploaded and size-verified daily/${name}"
+
+# 3. Weekly copy (server-side, no re-upload) if the newest weekly is older than 6 days.
+newest_weekly=$(rc lsf "r2:${BUCKET}/weekly/" --include '*.tar.zst' 2>/dev/null | sort | tail -1 || true)
+make_weekly=1
+if [[ -n "${newest_weekly}" ]]; then
+    d=${newest_weekly#daily-}; d=${d:0:8}
+    if (( ($(date +%s) - $(date -d "${d}" +%s)) < 6 * 86400 )); then make_weekly=0; fi
+fi
+if ((make_weekly)); then
+    rc copyto "r2:${BUCKET}/daily/${name}" "r2:${BUCKET}/weekly/${name}"
+    rc copyto "r2:${BUCKET}/daily/${name}.sha256" "r2:${BUCKET}/weekly/${name}.sha256"
+    log "weekly copy weekly/${name}"
+fi
+
+# 4. Retention: keep newest N archives per prefix, delete older archive + sidecar.
+prune() {
+    local dir=$1 keep=$2 f
+    mapfile -t old < <(rc lsf "r2:${BUCKET}/${dir}/" --include '*.tar.zst' | sort -r | tail -n +$((keep + 1)))
+    for f in "${old[@]}"; do
+        [[ -n "${f}" ]] || continue
+        rc deletefile "r2:${BUCKET}/${dir}/${f}"
+        rc deletefile "r2:${BUCKET}/${dir}/${f}.sha256" 2>/dev/null || true
+        log "pruned ${dir}/${f}"
+    done
+}
+prune daily "${DAILY_KEEP}"
+prune weekly "${WEEKLY_KEEP}"
+
+used=$(rc size "r2:${BUCKET}" --json | jq -r '"\(.count) objects, \(.bytes) bytes"')
+echo "OK ${name} $(date -Is) size=${size} bucket=${used}" > "${STATE}/last"
+log "done; bucket now ${used}"
