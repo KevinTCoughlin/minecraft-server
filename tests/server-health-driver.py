@@ -3,7 +3,8 @@
 """Exercise the server-health probe against local TCP and UDP peers.
 
 The probe is the Python block extracted from .github/workflows/server-health.yml.
-Nothing here contacts a public server.
+Nothing here contacts a public server. Bedrock is up on any HTTP status from
+NetherNet signaling, and a RakNet pong still counts when signaling does not answer.
 """
 
 import json
@@ -186,10 +187,73 @@ def serve_java(conn, mode, payload, errors, stats):
         errors.append(f"incomplete handshake: {buf!r}")
 
 
+def http_response(status):
+    phrases = {200: "OK", 204: "No Content", 404: "Not Found", 500: "Error"}
+    phrase = phrases.get(status, "OK")
+    return (
+        f"HTTP/1.1 {int(status)} {phrase}\r\n"
+        "content-length: 0\r\n"
+        "connection: close\r\n"
+        "\r\n"
+    ).encode("ascii")
+
+
+def serve_http(conn, status, stats):
+    with conn:
+        conn.settimeout(0.5)
+        buf = b""
+        deadline = time.time() + 1
+        while time.time() < deadline and b"\r\n\r\n" not in buf and len(buf) < 2048:
+            try:
+                chunk = conn.recv(1024)
+            except socket.timeout:
+                break
+            if not chunk:
+                break
+            buf += chunk
+        stats["request"] = buf
+        if status == "junk":
+            conn.sendall(b"OK\n")
+        elif status != "close":
+            conn.sendall(http_response(status))
+        stats["done"] = True
+
+
+def http_peer(status, ready, errors, stats):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(("127.0.0.1", stats.get("bind_port", 0)))
+        sock.listen(8)
+        stats["port"] = sock.getsockname()[1]
+        ready.set()
+        sock.settimeout(0.2)
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            if stats.get("done"):
+                return
+            try:
+                conn, _addr = sock.accept()
+            except socket.timeout:
+                continue
+            stats["accepts"] = stats.get("accepts", 0) + 1
+            try:
+                serve_http(conn, status, stats)
+            except Exception as exc:  # noqa: BLE001 - surface peer bugs to the test
+                errors.append(f"http peer: {exc!r}")
+            if stats.get("done"):
+                return
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"http peer: {exc!r}")
+        ready.set()
+    finally:
+        sock.close()
+
+
 def bedrock_peer(mode, packet, ready, errors, stats):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        sock.bind(("127.0.0.1", 0))
+        sock.bind(("127.0.0.1", stats.get("bind_port", 0)))
         stats["port"] = sock.getsockname()[1]
         ready.set()
         sock.settimeout(0.2)
@@ -224,10 +288,12 @@ def bedrock_peer(mode, packet, ready, errors, stats):
         sock.close()
 
 
-def start_peer(target, args):
+def start_peer(target, args, port=None):
     ready = threading.Event()
     errors = []
     stats = {}
+    if port is not None:
+        stats["bind_port"] = port
     thread = threading.Thread(target=target, args=(*args, ready, errors, stats), daemon=True)
     thread.start()
     if not ready.wait(2):
@@ -301,6 +367,11 @@ def join(thread, errors, name):
     thread.join(2)
     if errors:
         fail(f"{name}: {errors}")
+
+
+def finish(thread, errors, stats, name):
+    stats["done"] = True
+    join(thread, errors, name)
 
 
 def main():
@@ -434,6 +505,162 @@ def main():
         fail(f"retry did not ask twice: java {java_stats} bedrock {bedrock_stats}")
     print("ok: a dropped query is retried and then up")
 
+    # NetherNet signaling: any HTTP status on TCP is up, and RakNet is not asked.
+    # 404 is what Geyser's built-in server answers for GET /.
+    for status in (404, 200, 500):
+        java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+        http_thread, http_errors, http_stats = start_peer(http_peer, (status,))
+        udp_thread, udp_errors, udp_stats = start_peer(
+            bedrock_peer, ("blackhole", b""), port=http_stats["port"]
+        )
+        out = work / f"http{status}.txt"
+        proc = run_probe(
+            probe,
+            out,
+            java=java_stats["port"],
+            bedrock=http_stats["port"],
+            extra={"MC_HEALTH_BEDROCK_MODE": "nethernet"},
+        )
+        finish(java_thread, java_errors, java_stats, f"http{status}-java")
+        finish(http_thread, http_errors, http_stats, f"http{status}")
+        finish(udp_thread, udp_errors, udp_stats, f"http{status}-udp")
+        expect_ok(f"http {status}", proc)
+        values = read_outputs(out)
+        if values.get("down") != "":
+            fail(f"HTTP {status} should be up, got {values.get('down')!r}\n{proc.stdout}")
+        if f"up: NetherNet, HTTP {status}" not in proc.stdout:
+            fail(f"HTTP {status} detail missing\n{proc.stdout}")
+        if udp_stats.get("pings", 0) != 0:
+            fail(f"HTTP {status} should not send RakNet, pings={udp_stats.get('pings')}")
+        if status == 404:
+            request = http_stats.get("request", b"")
+            if not request.startswith(b"GET / HTTP/1.1\r\n"):
+                fail(f"signaling probe was not an HTTP GET, got {request!r}")
+    print("ok: any NetherNet HTTP status is up, including 404")
+
+    # An accepted TCP connection that does not speak HTTP is not signaling.
+    # With no RakNet pong, the port stays down.
+    java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+    junk_http, junk_http_errors, junk_http_stats = start_peer(http_peer, ("junk",))
+    junk_udp, junk_udp_errors, junk_udp_stats = start_peer(
+        bedrock_peer, ("blackhole", b""), port=junk_http_stats["port"]
+    )
+    out = work / "httpjunk.txt"
+    proc = run_probe(probe, out, java=java_stats["port"], bedrock=junk_http_stats["port"])
+    finish(java_thread, java_errors, java_stats, "httpjunk-java")
+    finish(junk_http, junk_http_errors, junk_http_stats, "httpjunk")
+    finish(junk_udp, junk_udp_errors, junk_udp_stats, "httpjunk-udp")
+    expect_ok("http junk", proc)
+    values = read_outputs(out)
+    if values.get("down") != str(junk_http_stats["port"]):
+        fail(f"non-HTTP TCP should be down, got {values.get('down')!r}\n{proc.stdout}")
+    if junk_udp_stats.get("pings", 0) < 1:
+        fail(f"non-HTTP TCP should fall back to RakNet, stats {junk_udp_stats}")
+    detail = values.get("detail", "")
+    if "no NetherNet HTTP response or RakNet unconnected pong" not in detail:
+        fail(f"non-HTTP detail missing the fallback reason\n{detail}")
+    print("ok: TCP that accepts but is not HTTP is down")
+
+    # raknet mode ignores signaling. HTTP 404 alone is down; a pong is still up.
+    java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+    http_thread, http_errors, http_stats = start_peer(http_peer, (404,))
+    udp_thread, udp_errors, udp_stats = start_peer(
+        bedrock_peer, ("blackhole", b""), port=http_stats["port"]
+    )
+    out = work / "raknet-http.txt"
+    proc = run_probe(
+        probe,
+        out,
+        java=java_stats["port"],
+        bedrock=http_stats["port"],
+        extra={"MC_HEALTH_BEDROCK_MODE": "raknet"},
+    )
+    finish(java_thread, java_errors, java_stats, "raknet-http-java")
+    finish(http_thread, http_errors, http_stats, "raknet-http")
+    finish(udp_thread, udp_errors, udp_stats, "raknet-http-udp")
+    expect_ok("raknet ignores http", proc)
+    values = read_outputs(out)
+    if values.get("down") != str(http_stats["port"]):
+        fail(f"raknet mode should ignore HTTP, got {values.get('down')!r}\n{proc.stdout}")
+    if http_stats.get("accepts", 0) != 0:
+        fail(f"raknet mode opened signaling: {http_stats}")
+    if udp_stats.get("pings", 0) < 1:
+        fail(f"raknet mode did not ping: {udp_stats}")
+    print("ok: raknet mode ignores NetherNet HTTP")
+
+    java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+    http_thread, http_errors, http_stats = start_peer(http_peer, (404,))
+    udp_thread, udp_errors, udp_stats = start_peer(
+        bedrock_peer, ("pong", raknet_pong(identity)), port=http_stats["port"]
+    )
+    out = work / "raknet-pong.txt"
+    proc = run_probe(
+        probe,
+        out,
+        java=java_stats["port"],
+        bedrock=http_stats["port"],
+        extra={"MC_HEALTH_BEDROCK_MODE": "raknet"},
+    )
+    finish(java_thread, java_errors, java_stats, "raknet-pong-java")
+    finish(http_thread, http_errors, http_stats, "raknet-pong-http")
+    finish(udp_thread, udp_errors, udp_stats, "raknet-pong")
+    expect_ok("raknet pong", proc)
+    values = read_outputs(out)
+    if values.get("down") != "":
+        fail(f"raknet mode pong should be up, got {values.get('down')!r}\n{proc.stdout}")
+    if "up: Dev, 1.21.50, players 2/20" not in proc.stdout:
+        fail(f"raknet mode did not report the pong\n{proc.stdout}")
+    if http_stats.get("accepts", 0) != 0:
+        fail(f"raknet mode opened signaling beside a pong: {http_stats}")
+    print("ok: raknet mode still counts a RakNet pong")
+
+    # either: signaling alone is up, and so is a pong when nothing accepts TCP.
+    java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+    http_thread, http_errors, http_stats = start_peer(http_peer, (404,))
+    udp_thread, udp_errors, udp_stats = start_peer(
+        bedrock_peer, ("blackhole", b""), port=http_stats["port"]
+    )
+    out = work / "either-http.txt"
+    proc = run_probe(
+        probe,
+        out,
+        java=java_stats["port"],
+        bedrock=http_stats["port"],
+        extra={"MC_HEALTH_BEDROCK_MODE": "Either"},
+    )
+    finish(java_thread, java_errors, java_stats, "either-http-java")
+    finish(http_thread, http_errors, http_stats, "either-http")
+    finish(udp_thread, udp_errors, udp_stats, "either-http-udp")
+    expect_ok("either http", proc)
+    values = read_outputs(out)
+    if values.get("down") != "":
+        fail(f"either mode should accept HTTP, got {values.get('down')!r}\n{proc.stdout}")
+    if udp_stats.get("pings", 0) != 0:
+        fail("either mode should not ping after HTTP answered")
+    print("ok: either mode counts NetherNet HTTP")
+
+    java_thread, java_errors, java_stats = start_peer(java_peer, ("status", java_status()))
+    udp_thread, udp_errors, udp_stats = start_peer(
+        bedrock_peer, ("pong", raknet_pong(identity))
+    )
+    out = work / "either-raknet.txt"
+    proc = run_probe(
+        probe,
+        out,
+        java=java_stats["port"],
+        bedrock=udp_stats["port"],
+        extra={"MC_HEALTH_BEDROCK_MODE": "either"},
+    )
+    finish(java_thread, java_errors, java_stats, "either-raknet-java")
+    finish(udp_thread, udp_errors, udp_stats, "either-raknet")
+    expect_ok("either raknet", proc)
+    values = read_outputs(out)
+    if values.get("down") != "":
+        fail(f"either mode should accept a RakNet fallback, got {values.get('down')!r}\n{proc.stdout}")
+    if udp_stats.get("pings") != 1:
+        fail(f"either mode did not fall back to one ping: {udp_stats}")
+    print("ok: either mode counts a RakNet pong when signaling is absent")
+
     # Both tries fail. The port stays down and each probe was sent twice.
     java_thread, java_errors, java_stats = start_peer(java_peer, ("junk", {}))
     bedrock_thread, bedrock_errors, bedrock_stats = start_peer(
@@ -467,16 +694,21 @@ def main():
         fail(f"retries did not wait between tries ({elapsed:.2f}s)")
     print("ok: still down after a retry, and the gap is honored")
 
-    # Unset ports mean 25565 and 19132. Hold them so nothing else can answer.
+    # Unset ports mean 25565 and 19132. Hold TCP 25565, and both TCP and UDP
+    # 19132, so nothing else can answer Java status, NetherNet signaling, or RakNet.
     holders = []
     try:
-        for port, kind in ((25565, socket.SOCK_STREAM), (19132, socket.SOCK_DGRAM)):
+        for port, kind in (
+            (25565, socket.SOCK_STREAM),
+            (19132, socket.SOCK_STREAM),
+            (19132, socket.SOCK_DGRAM),
+        ):
             held = socket.socket(socket.AF_INET, kind)
             held.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 held.bind(("127.0.0.1", port))
             except OSError as exc:
-                fail(f"could not hold 127.0.0.1:{port}: {exc}")
+                fail(f"could not hold 127.0.0.1:{port} ({kind}): {exc}")
             if kind == socket.SOCK_STREAM:
                 held.listen(8)
             holders.append(held)
@@ -492,7 +724,9 @@ def main():
     detail = values.get("detail", "")
     if "- 25565 down:" not in detail or "- 19132 down:" not in detail:
         fail(f"default detail missing a port\n{detail}")
-    print("ok: unset ports check TCP 25565 and UDP 19132")
+    if "no NetherNet HTTP response or RakNet unconnected pong" not in detail:
+        fail(f"default bedrock detail should name signaling and RakNet\n{detail}")
+    print("ok: unset ports check TCP 25565 and Bedrock TCP/UDP 19132")
 
     missing = run_probe(probe, work / "missing.txt", host=None)
     if missing.returncode != 0:
@@ -510,6 +744,13 @@ def main():
     zero = run_probe(probe, work / "zero.txt", extra={"MC_HEALTH_TRIES": "0"})
     if zero.returncode == 0:
         fail("tries of 0 should fail")
+    bad_mode = run_probe(
+        probe, work / "badmode.txt", extra={"MC_HEALTH_BEDROCK_MODE": "tcp"}
+    )
+    if bad_mode.returncode == 0 or "MC_HEALTH_BEDROCK_MODE must be nethernet, raknet or either" not in (
+        bad_mode.stderr or ""
+    ):
+        fail(f"bad bedrock mode should fail\n{bad_mode.stderr}")
     print("ok: a broken configuration exits 1")
 
     print("server health probe tests passed")

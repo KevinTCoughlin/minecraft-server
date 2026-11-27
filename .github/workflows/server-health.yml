@@ -2,11 +2,13 @@
 # Scheduled health check for the public Paper + Geyser server.
 #
 # Every 15 minutes, from an ubuntu-latest runner: a Java Edition server-list
-# status handshake on TCP (default 25565), and a Bedrock/Geyser RakNet
-# unconnected ping on UDP (default 19132). A port is down only when every try
-# fails (default 2, so one miss does not open an issue). The runner already has
-# Python and the gh CLI, so there is no third-party action to pin. Permissions
-# are contents: read and issues: write.
+# status handshake on TCP (default 25565), and a Bedrock/Geyser check (default
+# port 19132). NetherNet signaling is that port on TCP: the built-in HTTP
+# server answers, and any status counts, including a 404. A RakNet unconnected
+# ping on UDP is the fallback and also counts as up. A port is down only when
+# every try fails (default 2, so one miss does not open an issue). The runner
+# already has Python and the gh CLI, so there is no third-party action to pin.
+# Permissions are contents: read and issues: write.
 #
 # One issue titled "Server down" tracks state: opened on the first failure,
 # commented when the set of down ports changes or every 6 hours, closed on
@@ -18,6 +20,10 @@
 #                           notice and skips without opening an issue.
 #   MC_HEALTH_JAVA_PORT     optional. Default 25565.
 #   MC_HEALTH_BEDROCK_PORT  optional. Default 19132.
+#   MC_HEALTH_BEDROCK_MODE  optional. nethernet (default), raknet, or either.
+#                           nethernet probes NetherNet HTTP signaling and falls
+#                           back to a RakNet ping. raknet is only that ping.
+#                           either counts the port up when either one answers.
 #
 # MC_HEALTH_TRIES (default 2), MC_HEALTH_TIMEOUT (default 5 seconds) and
 # MC_HEALTH_GAP (default 10 seconds) tune the retries when set on the runner.
@@ -44,6 +50,7 @@ env:
   MC_HEALTH_HOST: ${{ vars.MC_HEALTH_HOST || secrets.MC_HEALTH_HOST }}
   MC_HEALTH_JAVA_PORT: ${{ vars.MC_HEALTH_JAVA_PORT || '25565' }}
   MC_HEALTH_BEDROCK_PORT: ${{ vars.MC_HEALTH_BEDROCK_PORT || '19132' }}
+  MC_HEALTH_BEDROCK_MODE: ${{ vars.MC_HEALTH_BEDROCK_MODE || 'nethernet' }}
   ISSUE_TITLE: Server down
   ISSUE_LABEL: server-down
 
@@ -67,8 +74,13 @@ jobs:
           MC_HEALTH_JAVA_PORT (default 25565) is a Minecraft Java server-list status
           handshake on TCP: a handshake with next state status, then a status request, then
           a status JSON response. An open port that does not complete that exchange is down.
-          MC_HEALTH_BEDROCK_PORT (default 19132) is a RakNet unconnected ping on UDP; the
+          MC_HEALTH_BEDROCK_PORT (default 19132) is Geyser. MC_HEALTH_BEDROCK_MODE is
+          nethernet (default), raknet, or either. nethernet opens TCP and counts any
+          HTTP status as up: that is NetherNet signaling, and a 404 still counts. A
+          RakNet unconnected ping on UDP is the fallback and also counts as up; the
           pong must carry the RakNet magic and an MCPE or MCEE identity string.
+          raknet sends only that ping. either counts the port up when signaling
+          answers or, when it does not, when the RakNet pong does.
 
           MC_HEALTH_TRIES (default 2), MC_HEALTH_TIMEOUT (default 5 seconds) and
           MC_HEALTH_GAP (default 10 seconds) tune the retries. A port is down only when
@@ -290,7 +302,7 @@ jobs:
               return {"name": name, "extra": ", ".join(extra), "via": "raknet"}
 
 
-          def query_bedrock(host, port, timeout):
+          def query_raknet(host, port, timeout):
               ping = (
                   b"\x01"
                   + int(time.time() * 1000).to_bytes(8, "big")
@@ -307,6 +319,82 @@ jobs:
               finally:
                   sock.close()
               return pong_fields(data)
+
+
+          def http_fields(data):
+              line = data.split(b"\n", 1)[0].rstrip(b"\r")
+              parts = line.split(b" ")
+              if len(parts) < 2:
+                  return None
+              version, status = parts[0], parts[1]
+              if version not in (b"HTTP/1.0", b"HTTP/1.1"):
+                  return None
+              if len(status) != 3 or not status.isdigit():
+                  return None
+              return {
+                  "name": "NetherNet",
+                  "extra": f"HTTP {status.decode('ascii')}",
+                  "via": "nethernet",
+              }
+
+
+          def query_nethernet(host, port, timeout):
+              try:
+                  request = (
+                      "GET / HTTP/1.1\r\n"
+                      f"Host: {host}\r\n"
+                      "Connection: close\r\n"
+                      "\r\n"
+                  ).encode("ascii")
+              except UnicodeEncodeError:
+                  return None
+              sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+              sock.settimeout(timeout)
+              try:
+                  sock.connect((host, port))
+                  sock.sendall(request)
+                  buf = bytearray()
+                  while len(buf) < 512 and b"\n" not in buf:
+                      chunk = sock.recv(512 - len(buf))
+                      if not chunk:
+                          break
+                      buf.extend(chunk)
+              except OSError:
+                  return None
+              finally:
+                  sock.close()
+              return http_fields(bytes(buf))
+
+
+          def bedrock_mode():
+              raw = os.environ.get("MC_HEALTH_BEDROCK_MODE", "").strip()
+              mode = raw.lower()
+              if not mode:
+                  return "nethernet"
+              if mode not in ("nethernet", "raknet", "either"):
+                  fail(
+                      "MC_HEALTH_BEDROCK_MODE must be nethernet, raknet or either, "
+                      f"got {raw!r}"
+                  )
+              return mode
+
+
+          def bedrock_why(mode):
+              if mode == "raknet":
+                  return "no RakNet unconnected pong"
+              return "no NetherNet HTTP response or RakNet unconnected pong"
+
+
+          def query_bedrock(host, port, timeout, mode):
+              # nethernet is this server's Geyser transport. Signaling answers HTTP
+              # on TCP, and any status is up. either is the same rule, named for
+              # "either protocol". Both fall back to RakNet when signaling does not
+              # answer, and that pong also counts as up. raknet never opens TCP.
+              if mode != "raknet":
+                  http = query_nethernet(host, port, timeout)
+                  if http is not None:
+                      return http
+              return query_raknet(host, port, timeout)
 
 
           def describe(result, why):
@@ -365,15 +453,19 @@ jobs:
 
               java_port = port_from_env("MC_HEALTH_JAVA_PORT", 25565)
               bedrock_port = port_from_env("MC_HEALTH_BEDROCK_PORT", 19132)
+              mode = bedrock_mode()
               tries = env_int("MC_HEALTH_TRIES", 2)
               timeout = env_seconds("MC_HEALTH_TIMEOUT", 5, allow_zero=False)
               gap = env_seconds("MC_HEALTH_GAP", 10, allow_zero=True)
+
+              def query_bedrock_mode(host, port, timeout):
+                  return query_bedrock(host, port, timeout, mode)
 
               down = []
               lines = []
               checks = (
                   (java_port, query_java, "no Java status response"),
-                  (bedrock_port, query_bedrock, "no RakNet unconnected pong"),
+                  (bedrock_port, query_bedrock_mode, bedrock_why(mode)),
               )
               for port, query, why in checks:
                   result = None
@@ -445,11 +537,11 @@ jobs:
             exit 0
           fi
 
-          body="Down at ${now}: no Java status or RakNet ping reply from ${MC_HEALTH_HOST} on port(s): **${DOWN}** after ${TRIES} tries. [Run](${run_url})
+          body="Down at ${now}: no Java status or Bedrock reply from ${MC_HEALTH_HOST} on port(s): **${DOWN}** after ${TRIES} tries. [Run](${run_url})
 
           ${DETAIL}
 
-          Check the host, then mc-server-manager status. Java Edition is TCP ${MC_HEALTH_JAVA_PORT} (server-list status). Bedrock/Geyser is UDP ${MC_HEALTH_BEDROCK_PORT} (RakNet unconnected ping)."
+          Check the host, then mc-server-manager status. Java Edition is TCP ${MC_HEALTH_JAVA_PORT} (server-list status). Bedrock/Geyser signaling is TCP ${MC_HEALTH_BEDROCK_PORT} (NetherNet HTTP, any status). A RakNet unconnected ping on UDP ${MC_HEALTH_BEDROCK_PORT} also counts as up."
           if [ -z "$number" ]; then
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --label "$ISSUE_LABEL" --body "$body"
             exit 0
