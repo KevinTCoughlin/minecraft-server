@@ -18,6 +18,7 @@
 set -euo pipefail
 # shellcheck source=mc-lib.sh
 source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+mc_require_feature MC_CHUNKY quiet   # Chunky only runs on the world that has it (the timer fires every minute)
 
 STATUS=0
 for a in "$@"; do

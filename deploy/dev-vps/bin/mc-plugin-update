@@ -19,6 +19,7 @@
 set -euo pipefail
 # shellcheck source=mc-lib.sh
 source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"
+mc_require_feature MC_UPDATES
 
 REPO="${MC_PLUGIN_REPO:-KevinTCoughlin/deathban-pro}"
 NAME="${MC_PLUGIN_NAME:-DeathBanPro}"

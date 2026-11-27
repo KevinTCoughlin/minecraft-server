@@ -6,6 +6,8 @@
 # files, server.properties, whitelist/ops JSON, and every plugin jar is a valid
 # zip. Never touches the live server. Result in ~/.local/state/mc-restore-test/last.
 set -euo pipefail
+# shellcheck source=mc-lib.sh
+source "$(dirname "$(readlink -f "$0")")/mc-lib.sh"   # active world's MC_BACKUP_DIR
 BACKUPS="${MC_BACKUP_DIR:-${HOME}/backups/minecraft}"
 STATE="${XDG_STATE_HOME:-${HOME}/.local/state}/mc-restore-test"
 mkdir -p "${STATE}"
@@ -22,9 +24,10 @@ zstd -tq "${latest}" || fail "zstd integrity"
 tar --zstd -xf "${latest}" -C "${scratch}" || fail "extract"
 level=$(sed -n 's/^level-name=//p' "${scratch}/server.properties" 2>/dev/null || true)
 [[ -n "${level}" ]] || fail "server.properties missing or has no level-name"
-[[ -s "${scratch}/${level}/level.dat" ]] || fail "${level}/level.dat missing"
-gzip -tq "${scratch}/${level}/level.dat" || fail "level.dat is not valid gzip NBT"
-regions=$(find "${scratch}/${level}" -name '*.mca' -size +0 | wc -l)
+ldir="${scratch}/${level}"; [[ -d "${ldir}" ]] || ldir="${scratch}/worlds/${level}"   # dad keeps worlds under worlds/
+[[ -s "${ldir}/level.dat" ]] || fail "${level}/level.dat missing"
+gzip -tq "${ldir}/level.dat" || fail "level.dat is not valid gzip NBT"
+regions=$(find "${ldir}" -name '*.mca' -size +0 | wc -l)
 ((regions > 0)) || fail "no region files"
 for j in whitelist.json ops.json; do
     jq -e . "${scratch}/${j}" >/dev/null 2>&1 || fail "${j} missing or invalid"
