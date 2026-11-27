@@ -1,0 +1,10 @@
+# Copy to ~mc/.config/mc-r2/rclone.conf (mode 0600) and fill in the values.
+# NEVER commit the real file. Use a bucket-scoped R2 API token (object read/write
+# on the backup bucket only). Rotate by editing the two key lines.
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = <R2_ACCESS_KEY_ID>
+secret_access_key = <R2_SECRET_ACCESS_KEY>
+endpoint = https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+acl = private
