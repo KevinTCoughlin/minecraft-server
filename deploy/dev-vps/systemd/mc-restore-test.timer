@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# Monthly on the 1st at 03:50 America/Los_Angeles, after mc-backup (03:30) and
+# before the updater window. Persistent so a missed month still runs.
+[Unit]
+Description=Monthly restore test of the minecraft-dev backups
+
+[Timer]
+OnCalendar=*-*-01 03:50:00 America/Los_Angeles
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Restore test of the newest minecraft-dev backup (scratch dir, live server untouched)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/mc-restore-test
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=50%
+TimeoutStartSec=900
+SyslogIdentifier=mc-restore-test

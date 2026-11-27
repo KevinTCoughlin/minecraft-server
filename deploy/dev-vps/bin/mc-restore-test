@@ -1,0 +1,42 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Restore test of the newest minecraft-dev backup (mirrors cs-server's
+# cs-restore-test). Extracts the newest ~/backups/minecraft/*.tar.zst into a
+# scratch dir and checks it would boot a server: level.dat (gzip NBT), region
+# files, server.properties, whitelist/ops JSON, and every plugin jar is a valid
+# zip. Never touches the live server. Result in ~/.local/state/mc-restore-test/last.
+set -euo pipefail
+BACKUPS="${MC_BACKUP_DIR:-${HOME}/backups/minecraft}"
+STATE="${XDG_STATE_HOME:-${HOME}/.local/state}/mc-restore-test"
+mkdir -p "${STATE}"
+log() { printf '%s %s\n' "$(date '+%F %T %Z')" "$*"; }
+
+latest=$(ls -1t "${BACKUPS}"/daily-*.tar.zst "${BACKUPS}"/pre-update-*.tar.zst 2>/dev/null | head -1 || true)
+[[ -n "${latest}" ]] || { log "FAIL: no backup in ${BACKUPS}"; echo "FAIL no-backup $(date -Is)" > "${STATE}/last"; exit 1; }
+scratch=$(mktemp -d "${TMPDIR:-/var/tmp}/mc-restore-test.XXXXXX")
+trap 'rm -rf "${scratch}"' EXIT
+fail() { log "FAIL: $*"; echo "FAIL $(basename "${latest}") $(date -Is) $*" > "${STATE}/last"; exit 1; }
+
+log "testing ${latest} ($(du -h "${latest}" | cut -f1), $(( ($(date +%s) - $(stat -c %Y "${latest}")) / 3600 ))h old)"
+zstd -tq "${latest}" || fail "zstd integrity"
+tar --zstd -xf "${latest}" -C "${scratch}" || fail "extract"
+level=$(sed -n 's/^level-name=//p' "${scratch}/server.properties" 2>/dev/null || true)
+[[ -n "${level}" ]] || fail "server.properties missing or has no level-name"
+[[ -s "${scratch}/${level}/level.dat" ]] || fail "${level}/level.dat missing"
+gzip -tq "${scratch}/${level}/level.dat" || fail "level.dat is not valid gzip NBT"
+regions=$(find "${scratch}/${level}" -name '*.mca' -size +0 | wc -l)
+((regions > 0)) || fail "no region files"
+for j in whitelist.json ops.json; do
+    jq -e . "${scratch}/${j}" >/dev/null 2>&1 || fail "${j} missing or invalid"
+done
+jars=0
+for jar in "${scratch}"/plugins/*.jar; do
+    [[ -e "${jar}" ]] || continue
+    python3 -c 'import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None' "${jar}" \
+        || fail "corrupt jar $(basename "${jar}")"
+    jars=$((jars + 1))
+done
+((jars > 0)) || fail "no plugin jars"
+msg="OK $(basename "${latest}") $(date -Is) level=${level} regions=${regions} jars=${jars}"
+echo "${msg}" > "${STATE}/last"
+log "${msg}"
