@@ -8,10 +8,14 @@
 #   mc rcon <command...>         console command over RCON (127.0.0.1 only)
 #   mc backup                    backup now
 #   mc restore-test              test-restore the newest backup into a scratch dir
+#   mc r2-upload                 upload the newest daily backup to Cloudflare R2 now
+#   mc r2-restore-test [weekly]  download the newest R2 backup to a scratch dir and verify it
 #   mc update [--dry-run|--now]  roll onto ghcr.io/kevintcoughlin/minecraft-server:main when idle
 #   mc plugin-update [--dry-run|--now]  newest DeathBanPro release when idle
 #   mc reboot-check              dry run of the idle reboot decision
 #   mc motd                      short summary used in the login banner
+#   mc world [<name>|list]       show worlds, or swap to <name> (idle only, backs up first)
+#   mc swap <name>               same as mc world <name>
 set -uo pipefail
 MCHOME=/home/mc
 DATA="${MCHOME}/minecraft-dev/data"
@@ -19,6 +23,16 @@ BACKUPS="${MCHOME}/backups/minecraft"
 QUADLET="${MCHOME}/.config/containers/systemd/minecraft-dev.container"
 AS=/usr/local/sbin/as-mc
 BIN="${MCHOME}/.local/bin"
+
+# Active world (mc world / mc-world). Each world's env file sets MC_UNIT, MC_DATA, ...
+WORLD=$(cat "${MCHOME}/.local/state/mc-world/active" 2>/dev/null || true)
+[[ "${WORLD}" =~ ^[a-z0-9-]+$ && -f "${MCHOME}/.config/mc-world/${WORLD}.env" ]] || WORLD=dev
+if [[ -f "${MCHOME}/.config/mc-world/${WORLD}.env" ]]; then
+    eval "$(env -i HOME="${MCHOME}" bash -c 'source "$1"; declare -p MC_UNIT MC_DATA MC_BACKUP_DIR MC_QUADLET' _ "${MCHOME}/.config/mc-world/${WORLD}.env")"
+    UNIT="${MC_UNIT}"; DATA="${MC_DATA}"; BACKUPS="${MC_BACKUP_DIR}"; QUADLET="${MC_QUADLET}"
+else
+    UNIT=minecraft-dev.service
+fi
 
 as_mc() {
     if [[ "$(id -un)" == mc ]]; then (cd /tmp && "$@"); else "${AS}" "$@"; fi
@@ -33,18 +47,18 @@ backup_age() {
 
 cmd_motd() {
     local state players
-    state=$(as_mc systemctl --user is-active minecraft-dev.service 2>/dev/null)
+    state=$(as_mc systemctl --user is-active "${UNIT}" 2>/dev/null)
     players=$(as_mc "${BIN}/mc-players" 2>/dev/null || echo "humans=unknown")
-    echo "  minecraft-dev: ${state}, ${players}"
+    echo "  ${UNIT%.service}: ${state}, ${players}  (active world: ${WORLD})"
     [[ -e /var/run/reboot-required ]] && echo "  reboot pending (mc-reboot-if-idle, 02:15-03:15 PT when idle)"
     echo "  last backup: $(backup_age)"
     echo "  try: mc status | mc logs | mc players | mc rcon list"
 }
 
 cmd_status() {
-    echo "== minecraft-dev"
-    as_mc systemctl --user --no-pager --lines=0 status minecraft-dev.service | sed -n '1,4p'
-    as_mc podman ps --filter name=minecraft-dev --format '   container: {{.Status}}  {{.Ports}}'
+    echo "== ${UNIT%.service} (active world: ${WORLD})"
+    as_mc systemctl --user --no-pager --lines=0 status "${UNIT}" | sed -n '1,4p'
+    as_mc podman ps --filter "name=^${UNIT%.service}\$" --format '   container: {{.Status}}  {{.Ports}}'
     echo "   image: $(sed -n 's/^Image=//p' "${QUADLET}")"
     echo "   $(as_mc "${BIN}/mc-players" 2>/dev/null || echo humans=unknown)"
     grep -m1 -oE 'Paper version [^ ]+' "${DATA}/logs/latest.log" 2>/dev/null | sed 's/^/   /'
@@ -56,6 +70,8 @@ cmd_status() {
     echo "== backups"
     echo "   last daily: $(backup_age)"
     echo "   restore test: $(cat "${MCHOME}/.local/state/mc-restore-test/last" 2>/dev/null || echo never)"
+    echo "   R2 upload: $(cat "${MCHOME}/.local/state/mc-r2/last" 2>/dev/null || echo never)"
+    echo "   R2 restore test: $(cat "${MCHOME}/.local/state/mc-r2/restore-test" 2>/dev/null || echo never)"
     echo "== timers (PT)"
     as_mc systemctl --user list-timers --no-pager 'mc-*' | sed -n '2,$p' | grep mc- | awk '{print "   " $NF ": " $1 " " $2 " " $3}'
     systemctl list-timers --no-pager mc-reboot-if-idle.timer | grep mc- | awk '{print "   " $NF ": " $1 " " $2 " " $3}'
@@ -81,9 +97,13 @@ case "${1:-status}" in
     rcon) shift; [[ $# -gt 0 ]] || { echo "usage: mc rcon <command...>" >&2; exit 2; }; as_mc "${BIN}/mc-rcon" "$@" ;;
     backup) as_mc "${BIN}/mc-backup" ;;
     restore-test) as_mc "${BIN}/mc-restore-test" ;;
+    r2-upload) as_mc "${BIN}/mc-r2-upload" ;;
+    r2-restore-test) shift; as_mc "${BIN}/mc-r2-restore-test" "$@" ;;
     update) shift; as_mc "${BIN}/mc-server-update" "${@:---dry-run}" ;;
     plugin-update) shift; as_mc "${BIN}/mc-plugin-update" "${@:---dry-run}" ;;
+    world) shift; as_mc "${BIN}/mc-world" "$@" ;;
+    swap) shift; [[ $# -gt 0 ]] || { echo "usage: mc swap <name>" >&2; exit 2; }; as_mc "${BIN}/mc-world" "$@" ;;
     reboot-check) /usr/local/sbin/mc-reboot-if-idle --dry-run ;;
-    -h|--help|help) sed -n '3,15p' "$0" ;;
+    -h|--help|help) sed -n '3,18p' "$0" ;;
     *) echo "unknown command: $1 (mc help)" >&2; exit 2 ;;
 esac

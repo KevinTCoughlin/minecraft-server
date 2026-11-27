@@ -26,7 +26,8 @@ if [[ ! -e "${REQUIRED_FILE}" && "${MC_REBOOT_ASSUME_REQUIRED:-0}" != "1" ]]; th
     say "no reboot required"
     exit 0
 fi
-if /usr/local/sbin/as-mc systemctl --user is-active --quiet minecraft-dev.service; then
+if /usr/local/sbin/as-mc systemctl --user is-active --quiet minecraft-dev.service \
+    || /usr/local/sbin/as-mc systemctl --user is-active --quiet minecraft-dad.service; then
     if ! out=$(/usr/local/sbin/as-mc /home/mc/.local/bin/mc-players 2>&1); then
         say "minecraft-dev: player count unknown (${out}); not rebooting"
         exit 0
