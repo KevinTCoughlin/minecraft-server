@@ -30,6 +30,9 @@ chmod 700 "${MC_BACKUP_DIR}"
 ts=$(date +%Y%m%d-%H%M%S)
 out="${MC_BACKUP_DIR}/${prefix}-${ts}.tar.zst"
 
+extra_excludes=()
+for e in ${MC_BACKUP_EXCLUDES:-}; do extra_excludes+=(--exclude="${e}"); done
+
 saved_off=0
 save_on() {
     if ((saved_off)); then
@@ -37,7 +40,7 @@ save_on() {
         saved_off=0
     fi
 }
-trap save_on EXIT
+trap 'save_on; rm -f "${out}.part"' EXIT
 
 # Pause Chunky first so the archive is not mid-write. We hold the
 # maintenance lock for the rest of this job; mc-chunky-idle will not
@@ -61,7 +64,14 @@ fi
 tar -C "${MC_DATA}" --zstd \
     --exclude=./cache --exclude=./libraries --exclude=./versions \
     --exclude=./dumps --exclude=./logs --exclude='./crash-reports' \
-    -cf "${out}.part" .
+    "${extra_excludes[@]}" \
+    -cf "${out}.part" . || {
+    rc=$?
+    # tar exits 1 when a file changed while it was read (Paper rewrites level.dat
+    # etc.); the archive is verified below. Anything else is a real failure.
+    ((rc == 1)) || exit "${rc}"
+    log "warning: tar reported changed files (exit 1); verifying the archive"
+}
 save_on
 mv "${out}.part" "${out}"
 chmod 600 "${out}"
