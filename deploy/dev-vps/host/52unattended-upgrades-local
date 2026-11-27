@@ -1,0 +1,6 @@
+// Kernel and library fixes need a reboot, but unattended-upgrades cannot see
+// Minecraft players. It installs updates; mc-reboot-if-idle.timer does the
+// reboot only when nobody is online (mirrors cs-server).
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";

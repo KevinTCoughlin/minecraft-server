@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+# Reboot for pending updates when nobody is on the Minecraft server and no SSH
+# session is open (mirrors cs-reboot-if-idle).
+[Unit]
+Description=Reboot for pending updates when no Minecraft players are online
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mc-reboot-if-idle
