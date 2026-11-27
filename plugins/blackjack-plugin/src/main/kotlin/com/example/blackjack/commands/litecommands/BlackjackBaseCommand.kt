@@ -21,11 +21,21 @@ import org.bukkit.entity.Player
 class BlackjackBaseCommand(plugin: BlackjackPlugin) : BaseBlackjackCommand(plugin) {
 
     /**
-     * Default executor when /bj is called without arguments
-     * Starts a new game or restarts if one is already active
+     * Default executor when /deal or /bj is called without arguments.
+     * Also accepts /deal start, which is what the Play Again chat button runs.
+     * Starts a new game or restarts if one is already active.
      */
     @Execute
     fun start(@Context player: Player) {
+        startGame(player)
+    }
+
+    @Execute(name = "start")
+    fun startNamed(@Context player: Player) {
+        startGame(player)
+    }
+
+    private fun startGame(player: Player) {
         // End existing game if any
         if (player.uniqueId in gameManager) {
             gameManager.endGame(player.uniqueId)
