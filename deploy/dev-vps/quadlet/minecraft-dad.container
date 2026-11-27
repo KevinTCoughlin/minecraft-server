@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: MIT
+# Swap partner of minecraft-dev: the mc-dad-server image on the same ports and
+# the same RCON password. NEVER run both at once (4 GB host, 2G heap each,
+# same ports). `mc world dad` / `mc world dev` stops one and starts the other.
+# Install: ~/.config/containers/systemd/ (with minecraft-dad.container.d/),
+# then `systemctl --user daemon-reload`.
+
+[Unit]
+Description=Minecraft dad world (ghcr.io/kevintcoughlin/mc-dad-server), swap-only partner of minecraft-dev
+
+[Quadlet]
+# Same reason as minecraft-dev: skip podman-user-wait-network-online (90 s on this image).
+DefaultDependencies=false
+
+[Container]
+# Pin by tag and digest; bump by hand (mc-server-update does not touch this world).
+Image=ghcr.io/kevintcoughlin/mc-dad-server:sha-5de0e64@sha256:2d61855b7f7c06e4ede03cff26a237148a77265c9f79bb8b6d43c2ef2088ea82
+ContainerName=minecraft-dad
+# Container uid 1000 (minecraft) is the host user mc.
+UserNS=keep-id:uid=1000,gid=1000
+PublishPort=25565:25565/tcp
+PublishPort=19132:19132/udp
+PublishPort=19132:19132/tcp
+PublishPort=127.0.0.1:25575:25575/tcp
+# The whole /minecraft tree (jar, plugins, configs, worlds, whitelist) lives
+# on the host so it survives container recreation.
+Volume=%h/minecraft-dad/data:/minecraft
+EnvironmentFile=%h/.config/minecraft-dev/rcon.env
+Environment=MEMORY=2G
+Environment=GC_TYPE=g1gc
+Environment=TZ=America/Los_Angeles
+Environment=WHITELIST=true
+ReadOnly=true
+Tmpfs=/tmp:rw,nosuid,size=256m
+DropCapability=ALL
+NoNewPrivileges=true
+StopTimeout=90
+PodmanArgs=--memory=3g --oom-score-adj=500
+# An OCI image carries no HEALTHCHECK, so define it here.
+HealthCmd=nc -z 127.0.0.1 25565
+HealthInterval=15s
+HealthTimeout=5s
+HealthStartPeriod=180s
+HealthRetries=3
+Notify=healthy
+
+[Service]
+Restart=on-failure
+# The image entrypoint exits 143 after its graceful SIGTERM shutdown; that is a clean stop.
+SuccessExitStatus=143
+RestartSec=15
+TimeoutStartSec=300
+TimeoutStopSec=120
+MemoryMax=3200M
+CPUQuota=350%
+
+[Install]
+WantedBy=default.target
